@@ -6,3 +6,7 @@ data
 *.db
 *.db-wal
 *.db-shm
+.gitignore
+tests
+README.md
+LICENSE

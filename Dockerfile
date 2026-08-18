@@ -1,13 +1,38 @@
-FROM node:24-bookworm
+# syntax=docker/dockerfile:1
+
+FROM node:24-bookworm AS build
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm bootstrap
+
+FROM node:24-bookworm-slim AS runtime
 
 RUN corepack enable \
     && apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+ENV NODE_ENV=production \
+    PROWLARR_DB=/prowlarr/prowlarr.db \
+    STATE_DB=/app/data/pt-monitor.db \
+    LISTEN=0.0.0.0 \
+    PORT=9709 \
+    INTERVAL_MINUTES=30
+
 WORKDIR /app
-COPY . .
-RUN pnpm install && pnpm bootstrap
+COPY --from=build /app .
 
 EXPOSE 9709
-CMD ["pnpm", "cli", "serve", "--db", "/prowlarr/prowlarr.db", "--listen", "0.0.0.0"]
+VOLUME ["/app/data"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:9709/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+
+ENTRYPOINT ["/app/pt-monitor-entrypoint.sh"]

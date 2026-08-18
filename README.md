@@ -46,7 +46,7 @@ Prowlarr DB
 
 - Node.js >= 24
 - pnpm 10
-- git
+- curl、tar（`pnpm bootstrap` 通过固定 commit 的 GitHub tarball 获取 PT-depiler，不依赖 git）
 - 能只读访问 Prowlarr app-data 目录（至少 `prowlarr.db`，建议整个目录只读挂载，以便读取 `Definitions/`）
 
 ## 安装
@@ -227,10 +227,34 @@ FlareSolverr 返回的新 Cookie 只在当前进程内存里使用，不写回 P
 ## Docker（实验性）
 
 ```bash
-docker compose -f docker-compose.example.yml up --build
+docker build -t pt-monitor .
+docker run -d \
+  --name pt-monitor \
+  -p 9709:9709 \
+  -v /data1/mediacenter/prowlarr/config:/prowlarr:ro \
+  -v "$PWD/data:/app/data" \
+  -e PROWLARR_DB=/prowlarr/prowlarr.db \
+  -e SITES=hdtime,pter,ultrahd \
+  pt-monitor
 ```
 
-先修改 compose 中的 Prowlarr volume 路径。
+先修改 Prowlarr volume 路径。常用环境变量（均有默认值，除 `PROWLARR_DB` 外均可省略）：
+
+```text
+PROWLARR_DB                 Prowlarr prowlarr.db 路径；默认 /prowlarr/prowlarr.db
+STATE_DB                    历史 SQLite；默认 /app/data/pt-monitor.db
+SITES                       PT-depiler definition 列表，逗号分隔；默认自动发现
+LISTEN                      默认 0.0.0.0
+PORT                        默认 9709
+INTERVAL_MINUTES            默认 30
+TIMEOUT_MS                  默认 30000
+USER_AGENT                  自定义 User-Agent
+FLARESOLVERR_URL            启用 FlareSolverr fallback
+FLARESOLVERR_TIMEOUT_MS     默认 90000
+DEBUG                       设 1 或 true 开启 PT-depiler 调试日志
+```
+
+也可在 `docker run` 末尾追加 CLI 参数覆盖。
 
 ## 测试
 
