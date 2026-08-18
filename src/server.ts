@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { collectSite, discoverDefinitions } from "./collector.ts";
+import { collectSite, discoverSiteTargets, type SiteTarget } from "./collector.ts";
 import { SnapshotStore } from "./store.ts";
 import { dashboardHtml } from "./ui.ts";
 
@@ -20,8 +20,15 @@ export interface ServeOptions {
 
 export async function serve(options: ServeOptions): Promise<void> {
   const store = new SnapshotStore(options.stateDb);
-  const definitions = options.sites?.length ? options.sites : discoverDefinitions(options.prowlarrDb);
-  if (definitions.length === 0) {
+  const targets: SiteTarget[] = options.sites?.length
+    ? options.sites.map((definition) => ({
+        definition,
+        prowlarrIndexerId: 0,
+        prowlarrIndexerName: "",
+        matchReason: "explicit configuration",
+      }))
+    : await discoverSiteTargets(options.prowlarrDb);
+  if (targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
   }
 
@@ -33,11 +40,12 @@ export async function serve(options: ServeOptions): Promise<void> {
     }
     const work = (async () => {
       const results: Array<Record<string, unknown>> = [];
-      for (const definition of definitions) {
+      for (const target of targets) {
         try {
           const collected = await collectSite({
             prowlarrDb: options.prowlarrDb,
-            definition,
+            definition: target.definition,
+            indexer: target.prowlarrIndexerId || undefined,
             timeoutMs: options.timeoutMs,
             userAgent: options.userAgent,
             flaresolverrUrl: options.flaresolverrUrl,
@@ -45,12 +53,12 @@ export async function serve(options: ServeOptions): Promise<void> {
             debug: options.debug,
           });
           store.insert(collected.snapshot);
-          results.push({ definition, ok: true, statusName: collected.snapshot.statusName });
+          results.push({ definition: target.definition, ok: true, statusName: collected.snapshot.statusName });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const detail = error instanceof Error ? error.stack ?? message : String(error);
-          process.stderr.write(`[pt-monitor] collect ${definition}: ${detail}\n`);
-          results.push({ definition, ok: false, error: message });
+          process.stderr.write(`[pt-monitor] collect ${target.definition}: ${detail}\n`);
+          results.push({ definition: target.definition, ok: false, error: message });
         }
       }
       return results;
@@ -65,7 +73,7 @@ export async function serve(options: ServeOptions): Promise<void> {
 
   const server = createServer(async (req, res) => {
     try {
-      await route(req, res, store, definitions, collectAll);
+      await route(req, res, store, targets.map((target) => target.definition), collectAll);
     } catch (error) {
       writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -75,7 +83,7 @@ export async function serve(options: ServeOptions): Promise<void> {
   const port = options.port ?? 9709;
   server.listen(port, listen, () => {
     process.stderr.write(`[pt-monitor] UI: http://${listen}:${port}\n`);
-    process.stderr.write(`[pt-monitor] sites: ${definitions.join(", ") || "(none)"}\n`);
+    process.stderr.write(`[pt-monitor] sites: ${targets.map((target) => target.definition).join(", ") || "(none)"}\n`);
     process.stderr.write(`[pt-monitor] state DB: ${options.stateDb}\n`);
   });
 

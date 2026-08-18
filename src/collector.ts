@@ -1,8 +1,10 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { ProwlarrDB } from "./prowlarr.ts";
-import { createSite, vendorRootPath } from "./ptdepiler.ts";
+import {
+  createSite,
+  listSiteMetadata,
+  loadSiteMetadata,
+  mapInputSettings,
+} from "./ptdepiler.ts";
 import type { IndexerCredentials, RuntimeOptions } from "./types.ts";
 import { NodeRuntime, installRuntime } from "./runtime.ts";
 import { installDomGlobals } from "./dom.ts";
@@ -38,6 +40,17 @@ export interface CollectResult {
   snapshot: AccountSnapshot;
 }
 
+export interface SiteTarget {
+  definition: string;
+  prowlarrIndexerId: number;
+  prowlarrIndexerName: string;
+  matchReason: string;
+}
+
+export interface DiscoveryOptions {
+  log?: (message: string) => void;
+}
+
 function runtimeOptions(options: CollectOptions): RuntimeOptions {
   const timeoutMs = options.timeoutMs ?? 30_000;
   return {
@@ -71,12 +84,151 @@ export function findProwlarrIndexer(db: ProwlarrDB, definition: string, explicit
   return db.getIndexer(definition);
 }
 
+function normalized(value: unknown): string {
+  return typeof value === "string" ? value.toLocaleLowerCase().replace(/[^a-z0-9]/g, "") : "";
+}
+
+function rot13(value: string): string {
+  return value.replace(/[A-Za-z]/g, (ch) => {
+    const base = ch <= "Z" ? 65 : 97;
+    return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
+  });
+}
+
+function decodeUrl(value: string): string {
+  return /^uggcf?:\/\//i.test(value) ? rot13(value) : value;
+}
+
+function host(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    return new URL(decodeUrl(value)).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function metadataNames(metadata: Record<string, any>): string[] {
+  return [metadata.id, metadata.name, ...(metadata.aka ?? [])].filter((value): value is string => typeof value === "string");
+}
+
+function metadataHosts(metadata: Record<string, any>): string[] {
+  return [...(metadata.urls ?? []), ...(metadata.legacyUrls ?? [])]
+    .map((value) => host(value))
+    .filter(Boolean);
+}
+
+function matchMetadata(
+  indexer: IndexerCredentials,
+  records: Awaited<ReturnType<typeof listSiteMetadata>>,
+): Array<{ definition: string; score: number; reason: string; dead: boolean }> {
+  const definitionKey = normalized(indexer.definitionFile);
+  const indexerName = normalized(indexer.name);
+  const implementation = normalized(indexer.implementation);
+  const baseHost = host(indexer.baseUrl);
+  return records.flatMap(({ definition, metadata }) => {
+    let score = 0;
+    const reasons: string[] = [];
+    const ids = [definition, metadata.id].map(normalized).filter(Boolean);
+    const names = metadataNames(metadata).map(normalized).filter(Boolean);
+    const hosts = metadataHosts(metadata);
+
+    if (definitionKey && ids.includes(definitionKey)) {
+      score = Math.max(score, 100);
+      reasons.push("normalized definition");
+    }
+    if (indexerName && names.includes(indexerName)) {
+      score = Math.max(score, 90);
+      reasons.push("metadata name");
+    }
+    if (implementation && names.includes(implementation)) {
+      score = Math.max(score, 80);
+      reasons.push("implementation name");
+    }
+    if (baseHost && hosts.includes(baseHost)) {
+      score = Math.max(score, 70);
+      reasons.push("metadata URL");
+    }
+
+    return score > 0
+      ? [{ definition, score, reason: reasons.join(", "), dead: metadata.isDead === true }]
+      : [];
+  });
+}
+
+function discoveryLog(message: string, options: DiscoveryOptions): void {
+  (options.log ?? ((line: string) => process.stderr.write(`${line}\n`)))(`[pt-monitor] ${message}`);
+}
+
+export async function discoverSiteTargets(prowlarrDb: string, options: DiscoveryOptions = {}): Promise<SiteTarget[]> {
+  ensureDom();
+  const db = new ProwlarrDB(prowlarrDb);
+  const records = await listSiteMetadata();
+  const targets: SiteTarget[] = [];
+  const candidates = db.listIndexers().filter((item) => item.enabled && item.privacy !== "public");
+
+  for (const indexer of candidates) {
+    const matches = matchMetadata(indexer, records).sort((a, b) => b.score - a.score || a.definition.localeCompare(b.definition));
+    const liveMatches = matches.filter((match) => !match.dead);
+    if (liveMatches.length === 0) {
+      const reason = matches.length > 0 ? `candidates are marked dead: ${matches.map((match) => match.definition).join(", ")}` : "no PT-depiler metadata matched";
+      discoveryLog(
+        `skip indexer ${indexer.id}:${indexer.name}: ${reason} (implementation=${indexer.implementation || "unknown"}, definitionFile=${indexer.definitionFile ?? "none"})`,
+        options,
+      );
+      continue;
+    }
+
+    const best = liveMatches[0];
+    const tied = liveMatches.filter((match) => match.score === best.score);
+    if (tied.length > 1) {
+      discoveryLog(
+        `skip indexer ${indexer.id}:${indexer.name}: ambiguous PT-depiler candidates ${tied.map((match) => match.definition).join(", ")} (score=${best.score})`,
+        options,
+      );
+      continue;
+    }
+
+    targets.push({
+      definition: best.definition,
+      prowlarrIndexerId: indexer.id,
+      prowlarrIndexerName: indexer.name,
+      matchReason: `${best.reason} (score=${best.score})`,
+    });
+    discoveryLog(
+      `matched indexer ${indexer.id}:${indexer.name} -> ${best.definition} via ${best.reason} (score=${best.score})`,
+      options,
+    );
+  }
+
+  return targets;
+}
+
 export async function collectSite(options: CollectOptions): Promise<CollectResult> {
   ensureDom();
   const db = new ProwlarrDB(options.prowlarrDb);
-  const credentials = findProwlarrIndexer(db, options.definition, options.indexer);
-  if (Object.keys(credentials.cookies).length === 0) {
-    throw new Error(`Prowlarr indexer ${credentials.id}:${credentials.name} has no usable cookies`);
+  let credentials: IndexerCredentials;
+  if (options.indexer !== undefined) {
+    credentials = findProwlarrIndexer(db, options.definition, options.indexer);
+  } else {
+    const targets = await discoverSiteTargets(options.prowlarrDb, { log: options.debug ? undefined : () => {} });
+    const matchingTargets = targets.filter((target) => target.definition === options.definition);
+    credentials = matchingTargets.length === 1
+      ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
+      : findProwlarrIndexer(db, options.definition);
+  }
+  const metadata = await loadSiteMetadata(options.definition);
+  const inputSetting = mapInputSettings(metadata, credentials.settings, credentials.cookies);
+  const missingInputs = ((metadata.userInputSettingMeta ?? []) as Array<{ name: string; required?: boolean }>)
+    .filter((input) => input.required && !inputSetting[input.name])
+    .map((input) => input.name);
+  if (missingInputs.length > 0) {
+    throw new Error(
+      `Prowlarr indexer ${credentials.id}:${credentials.name} is missing required PT-depiler settings: ${missingInputs.join(", ")}`,
+    );
+  }
+  if (Object.keys(credentials.cookies).length === 0 && Object.keys(inputSetting).length === 0) {
+    throw new Error(`Prowlarr indexer ${credentials.id}:${credentials.name} has no usable authentication material`);
   }
 
   const runtime = new NodeRuntime(runtimeOptions(options), credentials.cookies);
@@ -89,7 +241,12 @@ export async function collectSite(options: CollectOptions): Promise<CollectResul
   }
 
   const result = (await withUpstreamConsole(Boolean(options.debug), async () => {
-    const site = await createSite(options.definition, options.baseUrl, options.timeoutMs ?? 30_000);
+    const site = await createSite(
+      options.definition,
+      options.baseUrl ?? credentials.baseUrl,
+      options.timeoutMs ?? 30_000,
+      inputSetting,
+    );
     return (await site.getUserInfoResult()) as Record<string, unknown>;
   })) as Record<string, unknown>;
 
@@ -103,13 +260,7 @@ export async function collectSite(options: CollectOptions): Promise<CollectResul
   };
 }
 
-export function discoverDefinitions(prowlarrDb: string): string[] {
-  const db = new ProwlarrDB(prowlarrDb);
-  return db
-    .listIndexers()
-    .filter((item) => item.enabled && item.privacy !== "public" && item.definitionFile)
-    .map((item) => item.definitionFile!)
-    .filter((definition, index, all) => all.indexOf(definition) === index)
-    .filter((definition) => existsSync(resolve(vendorRootPath(), `src/packages/site/definitions/${definition}.ts`)))
-    .sort((a, b) => a.localeCompare(b));
+export async function discoverDefinitions(prowlarrDb: string): Promise<string[]> {
+  const targets = await discoverSiteTargets(prowlarrDb);
+  return [...new Set(targets.map((target) => target.definition))];
 }

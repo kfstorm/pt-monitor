@@ -1,5 +1,21 @@
 import { formatWithOptions } from "node:util";
 
+const sensitiveKey = /cookie|password|passkey|token|api[-_]?key|secret|authorization/i;
+
+function sanitizeForLog(value: unknown, key?: string): unknown {
+  if (key && sensitiveKey.test(key)) return "[REDACTED]";
+  if (Array.isArray(value)) return value.map((item) => sanitizeForLog(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
+        sanitizeForLog(entryValue, entryKey),
+      ]),
+    );
+  }
+  return value;
+}
+
 /**
  * PT-depiler writes verbose diagnostics with console.log(), which pollutes the
  * CLI's machine-readable stdout. Keep stdout reserved for JSON. In --debug
@@ -17,7 +33,7 @@ export async function withUpstreamConsole<T>(debug: boolean, fn: () => Promise<T
     if (!debug) return;
     const rendered = formatWithOptions(
       { colors: false, depth: 8, maxArrayLength: 100, breakLength: 120 },
-      ...args,
+      ...args.map((arg) => sanitizeForLog(arg)),
     );
     process.stderr.write(`[pt-depiler] ${rendered}\n`);
   };

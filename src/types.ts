@@ -16,10 +16,14 @@ export type ProwlarrPrivacySource = "cardigann-definition" | "unknown";
 export interface IndexerCredentials {
   id: number;
   name: string;
+  implementation: string;
+  configContract: string;
   enabled: boolean;
   privacy: ProwlarrIndexerPrivacy;
   privacySource: ProwlarrPrivacySource;
   definitionFile?: string;
+  baseUrl?: string;
+  settings: Record<string, unknown>;
   cookies: Record<string, string>;
   cookieExpiration: string | null;
 }

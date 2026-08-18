@@ -176,6 +176,8 @@ export class ProwlarrDB {
           SELECT
             i.Id AS Id,
             i.Name AS Name,
+            i.Implementation AS Implementation,
+            i.ConfigContract AS ConfigContract,
             i.Enable AS Enable,
             i.Settings AS Settings,
             s.Cookies AS RuntimeCookies,
@@ -188,16 +190,26 @@ export class ProwlarrDB {
 
       return rows.map((row) => {
         const settings = parseJson(row.Settings);
+        const settingsRecord = settings && typeof settings === "object" && !Array.isArray(settings)
+          ? (settings as Record<string, unknown>)
+          : {};
         const configured = findConfiguredCookies(settings);
         const runtime = parseCookieObject(row.RuntimeCookies);
         const privacy = this.resolvePrivacy(settings);
         return {
           id: Number(row.Id),
           name: String(row.Name),
+          implementation: String(row.Implementation ?? ""),
+          configContract: String(row.ConfigContract ?? ""),
           enabled: Boolean(Number(row.Enable)),
           privacy: privacy.privacy,
           privacySource: privacy.privacySource,
           definitionFile: privacy.definitionFile,
+          baseUrl:
+            typeof settingsRecord.baseUrl === "string" && settingsRecord.baseUrl.trim()
+              ? settingsRecord.baseUrl.trim()
+              : undefined,
+          settings: settingsRecord,
           // Runtime cookies are the latest view and win on duplicate names.
           cookies: { ...configured, ...runtime },
           cookieExpiration: row.CookiesExpirationDate ? String(row.CookiesExpirationDate) : null,

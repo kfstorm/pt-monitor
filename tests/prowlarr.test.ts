@@ -17,7 +17,7 @@ test("merges configured cookie with runtime cookie and resolves Cardigann privac
     const path = join(dir, "prowlarr.db");
     const db = new DatabaseSync(path);
     db.exec(`
-      CREATE TABLE Indexers (Id INTEGER PRIMARY KEY, Name TEXT, Enable INTEGER, Settings TEXT);
+      CREATE TABLE Indexers (Id INTEGER PRIMARY KEY, Name TEXT, Implementation TEXT, ConfigContract TEXT, Enable INTEGER, Settings TEXT);
       CREATE TABLE IndexerStatus (ProviderId INTEGER, Cookies TEXT, CookiesExpirationDate TEXT);
     `);
     db.prepare("INSERT INTO Indexers(Id, Name, Enable, Settings) VALUES (?, ?, ?, ?)").run(
@@ -54,7 +54,7 @@ test("resolves public definitions and leaves missing definitions unknown", () =>
     const path = join(dir, "prowlarr.db");
     const db = new DatabaseSync(path);
     db.exec(`
-      CREATE TABLE Indexers (Id INTEGER PRIMARY KEY, Name TEXT, Enable INTEGER, Settings TEXT);
+      CREATE TABLE Indexers (Id INTEGER PRIMARY KEY, Name TEXT, Implementation TEXT, ConfigContract TEXT, Enable INTEGER, Settings TEXT);
       CREATE TABLE IndexerStatus (ProviderId INTEGER, Cookies TEXT, CookiesExpirationDate TEXT);
     `);
     db.prepare("INSERT INTO Indexers(Id, Name, Enable, Settings) VALUES (?, ?, ?, ?)").run(

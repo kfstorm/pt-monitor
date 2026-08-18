@@ -128,10 +128,13 @@ async function list(args: ParsedArgs): Promise<void> {
       .map((item) => ({
         id: item.id,
         name: item.name,
+        implementation: item.implementation,
+        configContract: item.configContract,
         enabled: item.enabled,
         privacy: item.privacy,
         privacySource: item.privacySource,
         definitionFile: item.definitionFile,
+        baseUrl: item.baseUrl,
         cookieNames: Object.keys(item.cookies).sort(),
         cookieCount: Object.keys(item.cookies).length,
         cookieExpiration: item.cookieExpiration,
