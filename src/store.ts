@@ -50,6 +50,7 @@ export class SnapshotStore {
   }
 
   insert(snapshot: AccountSnapshot): number {
+    const raw = { ...snapshot.raw, seedingBonus: snapshot.seedingBonus };
     const result = this.db.prepare(`
       INSERT INTO snapshots (
         definition, prowlarr_indexer_id, prowlarr_indexer_name, collected_at,
@@ -75,7 +76,7 @@ export class SnapshotStore {
       snapshot.hnrPreWarning,
       snapshot.username,
       snapshot.level,
-      JSON.stringify(snapshot.raw),
+      JSON.stringify(raw),
     );
     return Number(result.lastInsertRowid);
   }
@@ -138,6 +139,7 @@ function rowToSnapshot(row: Record<string, unknown>): StoredSnapshot {
     downloaded: nullableNumber(row.downloaded),
     ratio: nullableNumber(row.ratio),
     bonus: nullableNumber(row.bonus),
+    seedingBonus: nullableNumber(raw.seedingBonus),
     bonusPerHour: nullableNumber(row.bonus_per_hour),
     seedingCount: nullableNumber(row.seeding_count),
     seedingSize: nullableNumber(row.seeding_size),

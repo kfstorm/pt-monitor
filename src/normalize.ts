@@ -11,6 +11,7 @@ export interface AccountSnapshot {
   downloaded: number | null;
   ratio: number | null;
   bonus: number | null;
+  seedingBonus: number | null;
   bonusPerHour: number | null;
   seedingCount: number | null;
   seedingSize: number | null;
@@ -30,6 +31,15 @@ function finiteNumber(value: unknown): number | null {
   return null;
 }
 
+function ratioNumber(value: unknown): number | null {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return null;
+}
+
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -41,10 +51,17 @@ export function normalizeUserInfo(
   collectedAt = Date.now(),
 ): AccountSnapshot {
   const status = finiteNumber(result.status);
-  const uploaded = finiteNumber(result.trueUploaded) ?? finiteNumber(result.uploaded);
-  const downloaded = finiteNumber(result.trueDownloaded) ?? finiteNumber(result.downloaded);
-  const explicitRatio = finiteNumber(result.trueRatio) ?? finiteNumber(result.ratio);
-  const computedRatio = uploaded !== null && downloaded !== null && downloaded > 0 ? uploaded / downloaded : null;
+  const uploaded = finiteNumber(result.uploaded);
+  const downloaded = finiteNumber(result.downloaded);
+  const explicitRatio = ratioNumber(result.ratio);
+  const computedRatio =
+    uploaded !== null && downloaded !== null
+      ? downloaded > 0
+        ? uploaded / downloaded
+        : uploaded > 0
+          ? Infinity
+          : null
+      : null;
 
   return {
     definition,
@@ -56,8 +73,9 @@ export function normalizeUserInfo(
     uploaded,
     downloaded,
     ratio: explicitRatio ?? computedRatio,
-    bonus: finiteNumber(result.bonus) ?? finiteNumber(result.seedingBonus),
-    bonusPerHour: finiteNumber(result.bonusPerHour) ?? finiteNumber(result.seedingBonusPerHour),
+    bonus: finiteNumber(result.bonus),
+    seedingBonus: finiteNumber(result.seedingBonus),
+    bonusPerHour: finiteNumber(result.bonusPerHour),
     seedingCount: finiteNumber(result.seeding),
     seedingSize: finiteNumber(result.seedingSize),
     hnrUnsatisfied: finiteNumber(result.hnrUnsatisfied),
@@ -68,4 +86,4 @@ export function normalizeUserInfo(
   };
 }
 
-export const _test = { finiteNumber, stringValue };
+export const _test = { finiteNumber, ratioNumber, stringValue };

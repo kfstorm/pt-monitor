@@ -137,5 +137,9 @@ async function route(
 
 function writeJson(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-  res.end(`${JSON.stringify(value)}\n`);
+  res.end(`${JSON.stringify(value, (_key, item: unknown) => {
+    if (item === Infinity) return "Infinity";
+    if (item === -Infinity) return "-Infinity";
+    return item;
+  })}\n`);
 }

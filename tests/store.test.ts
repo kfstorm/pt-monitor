@@ -18,6 +18,7 @@ function snapshot(definition: string, at: number, bonus: number): AccountSnapsho
     downloaded: 2,
     ratio: 5,
     bonus,
+    seedingBonus: 2,
     bonusPerHour: 1,
     seedingCount: 2,
     seedingSize: 3,
@@ -37,6 +38,7 @@ test("stores latest snapshot and history", () => {
     store.insert(snapshot("a", 2000, 20));
     store.insert(snapshot("b", 1500, 30));
     assert.equal(store.latestFor("a")?.bonus, 20);
+    assert.equal(store.latestFor("a")?.seedingBonus, 2);
     assert.deepEqual(store.latest().map((x) => x.definition), ["a", "b"]);
     assert.equal(store.history("a", 0).length, 2);
   } finally {

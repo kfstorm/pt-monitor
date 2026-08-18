@@ -10,5 +10,8 @@ test("dashboard HTML contains a syntactically valid browser script", () => {
   assert.ok(script);
   assert.match(script, /=>`\$\{/);
   assert.match(script, /points="\$\{points\}"/);
+  assert.match(script, /fmtRatio\(s\.ratio,s\.uploaded,s\.downloaded\)/);
+  assert.match(script, /s\.seedingBonus/);
+  assert.match(script, /Seeding:/);
   assert.doesNotThrow(() => new Script(script));
 });
