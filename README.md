@@ -71,7 +71,7 @@ pnpm bootstrap
 
 ```bash
 pnpm cli serve \
-  --db /data1/mediacenter/prowlarr/config/prowlarr.db \
+  --db /path/to/prowlarr.db \
   --sites hdtime,pter,ultrahd
 ```
 
@@ -91,7 +91,7 @@ http://127.0.0.1:9709
 
 ```bash
 pnpm cli serve \
-  --db /data1/mediacenter/prowlarr/config/prowlarr.db
+  --db /path/to/prowlarr.db
 ```
 
 当前自动发现只做保守匹配；名称/definition 不一致的站建议使用 `--sites`。
@@ -139,7 +139,7 @@ API 不返回 Cookie。
 ### 查看 indexer
 
 ```bash
-pnpm cli list --db /data1/mediacenter/prowlarr/config/prowlarr.db
+pnpm cli list --db /path/to/prowlarr.db
 ```
 
 默认排除：
@@ -159,14 +159,14 @@ pnpm cli list --db ... --all
 
 ```bash
 pnpm cli fetch hdtime \
-  --db /data1/mediacenter/prowlarr/config/prowlarr.db
+  --db /path/to/prowlarr.db
 ```
 
 ### 单站抓取并写 SQLite
 
 ```bash
 pnpm cli snapshot hdtime \
-  --db /data1/mediacenter/prowlarr/config/prowlarr.db \
+  --db /path/to/prowlarr.db \
   --state-db ./data/pt-monitor.db
 ```
 
@@ -231,7 +231,7 @@ docker build -t pt-monitor .
 docker run -d \
   --name pt-monitor \
   -p 9709:9709 \
-  -v /data1/mediacenter/prowlarr/config:/prowlarr:ro \
+  -v /path/to/prowlarr/config:/prowlarr:ro \
   -v "$PWD/data:/app/data" \
   -e PROWLARR_DB=/prowlarr/prowlarr.db \
   -e SITES=hdtime,pter,ultrahd \
