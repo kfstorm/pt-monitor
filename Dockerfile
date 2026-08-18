@@ -10,8 +10,14 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json frontend/
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+COPY scripts/ scripts/
+COPY patches/ patches/
 RUN pnpm bootstrap
+
+COPY src/ src/
+COPY tsconfig.json ./
+COPY frontend/index.html frontend/components.json frontend/tsconfig.json frontend/vite.config.ts frontend/
+COPY frontend/src/ frontend/src/
 RUN pnpm ui:build
 
 FROM node:24-bookworm-slim AS runtime
@@ -29,7 +35,12 @@ ENV NODE_ENV=production \
     INTERVAL_MINUTES=30
 
 WORKDIR /app
-COPY --from=build /app .
+COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/tsconfig.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/vendor ./vendor
+COPY --from=build /app/src ./src
+COPY --from=build /app/frontend/dist ./frontend/dist
+COPY pt-monitor-entrypoint.sh ./
 
 EXPOSE 9709
 VOLUME ["/app/data"]
