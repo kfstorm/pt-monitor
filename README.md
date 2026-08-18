@@ -1,58 +1,53 @@
-# pt-monitor + PT-depiler PoC
+# PT Monitor v0.3.0
 
-这个 PoC 验证：**Prowlarr 提供认证 Cookie，PT-depiler 提供站点适配/解析，在普通 Node.js CLI 中抓 PT 账号统计。**
+一个自托管的 PT 账号状态仪表盘原型：**复用 Prowlarr 的登录 Cookie，复用 PT-depiler 的站点解析逻辑**，采集账号上传/下载/分享率/魔力/时魔/做种/H&R 等信息，并保存 SQLite 历史。
 
-没有配置文件。所有运行参数都通过 CLI 传入。
+> v0.3.0 是从 CLI PoC 向正式项目形态迈出的第一版：保留 CLI，同时加入内置 Web UI、SQLite snapshot 和定时采集。
 
-## 数据流
+## 特点
 
-```text
-Prowlarr prowlarr.db
-  ├─ Indexers.Settings        手工登录 Cookie
-  └─ IndexerStatus.Cookies    运行时 Cookie / 可能含 cf_clearance
-             │
-             ▼
-       Node Cookie runtime
-             │
-             ▼
-PT-depiler definition + schema
-  pter.ts -> NexusPHP -> AbstractPrivateSite
-             │
-             ▼
-       getUserInfoResult()
-             │
-       ┌─────┴─────┐
-       │           │
-   normal HTTP   Cloudflare
-                   │
-                   ▼
-              FlareSolverr
-             │
-             ▼
-         PT-depiler IUserInfo JSON
-```
+- 不重复维护 Cookie：读取 Prowlarr `prowlarr.db`
+- PT-depiler 负责 NexusPHP / Gazelle / Unit3D 等站点差异
+- 单进程、单端口
+- 内置 SQLite，不要求 Prometheus/Grafana
+- Web UI 展示当前账号状态和 7 天简单趋势
+- 可选 FlareSolverr fallback
+- CLI 仍可单站调试
+- 不输出 Cookie 值
+- 无运行时配置文件，全部使用 CLI 参数
 
-## PT-depiler 复用方式
-
-PoC 不 fork/copy 整个 PT-depiler。`pnpm bootstrap` 会拉取并固定：
+## 架构
 
 ```text
-pt-plugins/PT-depiler
-82df7210244d9352d4f9792a17905f51f8ed2304
+Prowlarr DB
+  ├─ Indexers.Settings
+  └─ IndexerStatus.Cookies
+          │
+          ▼
+      auth runtime
+          │
+          ▼
+ PT-depiler adapters
+          │
+          ▼
+   normalized snapshot
+       │         │
+       ▼         ▼
+    SQLite     CLI JSON
+       │
+       ▼
+    Web API
+       │
+       ▼
+    Web UI
 ```
-
-然后只覆盖浏览器平台 adapter，并应用少量 Node 兼容 patch。
 
 ## 要求
 
-- Linux/macOS
 - Node.js >= 24
+- pnpm 10
 - git
-- pnpm 10（可先执行 `corepack enable`）
-- 能访问 GitHub
-- 能只读访问 Prowlarr 的 `prowlarr.db` 及同目录 WAL/SHM
-
-Node 24 自带 `node:sqlite`，所以 PoC 不需要 `better-sqlite3`。DOM 使用 `jsdom`。
+- 能只读访问 Prowlarr app-data 目录（至少 `prowlarr.db`，建议整个目录只读挂载，以便读取 `Definitions/`）
 
 ## 安装
 
@@ -62,181 +57,180 @@ pnpm install
 pnpm bootstrap
 ```
 
-`pnpm bootstrap` 会 clone PT-depiler、checkout 固定 commit、安装其依赖并应用 Node overlay。
-
-## CLI
+`pnpm bootstrap` 会拉取并固定 PT-depiler commit：
 
 ```text
-pnpm cli doctor --db PATH
-pnpm cli list   --db PATH [--all]
-pnpm cli fetch  DEFINITION --db PATH [options]
+82df7210244d9352d4f9792a17905f51f8ed2304
 ```
 
-### 1. 检查环境
+然后应用 Node compatibility overlay。
+
+## 直接启动 Web UI
+
+显式指定要监控的 PT-depiler definitions：
 
 ```bash
-pnpm cli doctor --db /srv/prowlarr/prowlarr.db
+pnpm cli serve \
+  --db /data1/mediacenter/prowlarr/config/prowlarr.db \
+  --sites hdtime,pter,ultrahd
 ```
 
-输出 vendor patch 状态、Node 版本和 Prowlarr DB 是否存在，不输出 Cookie 值。
+打开：
 
-### 2. 查看 Prowlarr indexer / Cookie 名称
+```text
+http://127.0.0.1:9709
+```
+
+默认每 30 分钟采集一次，并立即执行一次首次采集。历史保存在：
+
+```text
+./data/pt-monitor.db
+```
+
+也可以让它尝试自动发现 Prowlarr definition 与 PT-depiler definition 的交集：
 
 ```bash
-pnpm cli list --db /srv/prowlarr/prowlarr.db
-
-# 默认只列出 enabled 且非 public 的 indexer；排查时可查看全部
-pnpm cli list --db /srv/prowlarr/prowlarr.db --all
+pnpm cli serve \
+  --db /data1/mediacenter/prowlarr/config/prowlarr.db
 ```
 
-类似：
+当前自动发现只做保守匹配；名称/definition 不一致的站建议使用 `--sites`。
 
-```json
-[
-  {
-    "id": 12,
-    "name": "PTer",
-    "enabled": true,
-    "privacy": "private",
-    "cookieNames": ["cf_clearance", "c_secure_pass", "c_secure_uid"],
-    "cookieCount": 3,
-    "cookieExpiration": "2026-09-01T00:00:00Z"
-  }
-]
-```
-
-`privacy` 为 `public` / `semi-private` / `private`。默认排除 `enabled=false` 和 `privacy=public`；`--all` 可查看全部。Cookie 仍然只显示名称，不显示值。
-
-### 3. 抓 PTer
-
-最短命令：
-
-```bash
-pnpm cli fetch pter --db /srv/prowlarr/prowlarr.db
-```
-
-默认会用 definition 名 `pter` 去匹配 Prowlarr indexer；匹配不对时显式指定：
-
-```bash
-pnpm cli fetch pter \
-  --db /srv/prowlarr/prowlarr.db \
-  --indexer PTer
-```
-
-也可以直接用 indexer ID：
-
-```bash
-pnpm cli fetch pter \
-  --db /srv/prowlarr/prowlarr.db \
-  --indexer 12
-```
-
-成功时输出 PT-depiler `IUserInfo`，例如：
-
-```json
-{
-  "collector": "PT-depiler",
-  "definition": "pter",
-  "prowlarrIndexer": {
-    "id": 12,
-    "name": "PTer"
-  },
-  "cookieNames": ["c_secure_pass", "c_secure_uid"],
-  "result": {
-    "site": "pter",
-    "id": 12345,
-    "uploaded": 123456789,
-    "downloaded": 1234567,
-    "bonus": 1234.5,
-    "seedingBonus": 6789,
-    "bonusPerHour": 6.2,
-    "seeding": 100,
-    "seedingSize": 1234567890,
-    "hnrPreWarning": 0,
-    "hnrUnsatisfied": 0
-  }
-}
-```
-
-具体字段以当前 PT-depiler definition/schema 返回为准。
-
-## Fetch 参数
+### Serve 参数
 
 ```text
 --db PATH                     Prowlarr DB，必填
---indexer NAME_OR_ID          Prowlarr indexer；默认等于 definition
---base-url URL                覆盖 PT-depiler definition 默认站点 URL
---timeout-ms MS               HTTP timeout，默认 30000
---user-agent UA               覆盖 User-Agent
---flaresolverr-url URL        传入即开启 Cloudflare fallback
+--state-db PATH               历史 SQLite；默认 ./data/pt-monitor.db
+--sites a,b,c                 PT-depiler definition 列表
+--listen ADDRESS              默认 127.0.0.1
+--port PORT                   默认 9709
+--interval-minutes N          默认 30
+--timeout-ms MS               默认 30000
+--user-agent UA               自定义 User-Agent
+--flaresolverr-url URL        开启 FlareSolverr fallback
 --flaresolverr-timeout-ms MS  默认 90000
---debug                       非敏感调试日志
+--debug                       PT-depiler 调试日志输出到 stderr
 ```
 
-例如站点走 FlareSolverr：
+如果要局域网访问：
+
+```bash
+pnpm cli serve \
+  --db /prowlarr/prowlarr.db \
+  --listen 0.0.0.0 \
+  --sites hdtime,pter
+```
+
+**当前版本没有 Web 登录认证。不要直接暴露到公网。**
+
+## Web API
+
+```text
+GET  /api/health
+GET  /api/sites
+GET  /api/sites/:definition/history?hours=168
+POST /api/collect
+```
+
+API 不返回 Cookie。
+
+## CLI
+
+### 查看 indexer
+
+```bash
+pnpm cli list --db /data1/mediacenter/prowlarr/config/prowlarr.db
+```
+
+默认排除：
+
+- `enabled=false`
+- 能明确识别为 `public` 的 Cardigann indexer
+
+无法判断 privacy 的 indexer 保留并标记为 `unknown`。
+
+查看全部：
+
+```bash
+pnpm cli list --db ... --all
+```
+
+### 单站抓取（不写历史）
+
+```bash
+pnpm cli fetch hdtime \
+  --db /data1/mediacenter/prowlarr/config/prowlarr.db
+```
+
+### 单站抓取并写 SQLite
+
+```bash
+pnpm cli snapshot hdtime \
+  --db /data1/mediacenter/prowlarr/config/prowlarr.db \
+  --state-db ./data/pt-monitor.db
+```
+
+### 显式指定 Prowlarr indexer
 
 ```bash
 pnpm cli fetch pter \
-  --db /srv/prowlarr/prowlarr.db \
-  --indexer PTer \
-  --flaresolverr-url http://127.0.0.1:8191/v1
+  --db /path/to/prowlarr.db \
+  --indexer PTer
 ```
 
-需要覆盖站点地址时：
+## Snapshot 模型
 
-```bash
-pnpm cli fetch pter \
-  --db /srv/prowlarr/prowlarr.db \
-  --base-url https://pterclub.net/
+当前 normalized snapshot 包含：
+
+```text
+definition
+collectedAt
+status / statusName
+uploaded
+downloaded
+ratio
+bonus
+bonusPerHour
+seedingCount
+seedingSize
+hnrUnsatisfied
+hnrPreWarning
+username
+level
 ```
+
+原始 PT-depiler user-info JSON 也保存在 SQLite `raw_json` 中，便于以后增加站点特有字段；不会保存 Cookie。
+
+## SQLite
+
+数据库目前只有一张核心表：
+
+```text
+snapshots
+```
+
+每次成功执行 collector（包括 `parseError` / `needLogin` 等 PT-depiler 状态返回）都会保存一条 snapshot。真正抛出的 transport/setup 错误只记录日志，不制造假 snapshot。
 
 ## Cloudflare
 
-```text
-PT-depiler request
-    │
-    ├─ 自动注入 Prowlarr Cookie
-    ▼
-normal axios request
-    │
-    ├─ success -> Document -> PT-depiler parser
-    │
-    └─ Cloudflare challenge
-           │
-           ▼
-       FlareSolverr
-       + 当前 Cookie
-           │
-           ├─ 本次进程保存新 cf_clearance 等 Cookie
-           ├─ 本次进程保存 FlareSolverr User-Agent
-           ▼
-       Document -> PT-depiler parser
-```
-
-FlareSolverr 返回的新 Cookie 不会写回 Prowlarr。
-
-## 为什么没有使用 PT-depiler 的 `getSite()`？
-
-上游 `getSite()` 依赖 Vite `import.meta.glob()`。PoC 直接动态 import 指定 definition：
-
-```text
-definitions/pter.ts
-       │
-       ├─ 有 default class -> 直接用
-       └─ 无 default class -> 按 siteMetadata.schema 加载 schema
-```
-
-因此 CLI 不需要变成 Vite/WebExtension 应用。
-
-## 调试
+可以启用 FlareSolverr：
 
 ```bash
-pnpm cli fetch pter \
-  --db /srv/prowlarr/prowlarr.db \
-  --debug
+pnpm cli serve \
+  --db /path/to/prowlarr.db \
+  --sites pter,hdtime \
+  --flaresolverr-url http://127.0.0.1:8191/v1
 ```
 
-日志只显示 definition、indexer、Cookie 名称等，不打印 Cookie 值。
+FlareSolverr 返回的新 Cookie 只在当前进程内存里使用，不写回 Prowlarr。
+
+## Docker（实验性）
+
+```bash
+docker compose -f docker-compose.example.yml up --build
+```
+
+先修改 compose 中的 Prowlarr volume 路径。
 
 ## 测试
 
@@ -244,51 +238,36 @@ pnpm cli fetch pter \
 pnpm test
 ```
 
-当前测试覆盖 Prowlarr configured/runtime Cookie 合并，包括运行时 Cookie 覆盖旧值和保留 `cf_clearance`。
+当前覆盖：
 
-## 当前边界
+- Prowlarr configured/runtime Cookie merge
+- Prowlarr enabled/privacy 解析
+- normalized snapshot
+- SQLite latest/history
 
-还没有：SQLite 历史统计、Prometheus/Grafana exporter、systemd timer/daemon、H&R 明细/deadline、M-Team 官方 API adapter、自动映射所有 Prowlarr indexer → PT-depiler definition。
+## v0.3.0 仍然没有做
 
-这个 PoC 首先验证 `pter -> NexusPHP -> getUserInfoResult()` 能否在 Node 环境真实跑通。
+- 完整的 Prowlarr ↔ PT-depiler 自动站点映射
+- UI 中配置站点映射
+- Web 登录/多用户
+- H&R 明细/deadline
+- 新人考核/升级进度规则
+- M-Team 官方 API collector
+- 通知
+- Prometheus `/metrics`
+- 自动 retention/downsampling
+
+这些都应该建立在 collector + normalized model + history 稳定之后。
 
 ## 安全
 
-`prowlarr.db`、Cookie、passkey 都是认证秘密。Prowlarr 目录建议只读挂载；不要打印 Cookie 值，也不要把带登录态的 debug HTML 上传到公共 issue。
+`prowlarr.db`、Cookie、passkey 都属于认证秘密：
 
-## Compatibility note
+- Prowlarr app-data 建议只读挂载
+- 不要把 DB 或 Cookie 提交到 Git
+- 不要把登录后的完整 HTML 上传到公共 issue
+- Web UI 当前无认证，默认只监听 `127.0.0.1`
 
-Node 21+ provides a read-only `globalThis.navigator`. v0.2.3 no longer overwrites it when installing the jsdom globals.
+## License
 
-
-
-## Troubleshooting
-
-If an older checkout fails with `Cannot find package '@ptd/social'`, update to v0.2.3 and rerun:
-
-```bash
-node scripts/patch-vendor.mjs
-```
-
-You do not need to reinstall npm dependencies or reclone PT-depiler for this patch.
-
-
-### v0.2.3: remaining PT-depiler aliases
-
-PT-depiler's `site` package still contains a few `@ptd/site` self-aliases and `@ptd/social` references in shared types or individual definitions. The Node overlay now rewrites all known aliases in the vendored `src/packages/site` tree to relative imports or tiny equivalent helpers, then retains the global alias-leak check. Existing checkouts only need the new `scripts/patch-vendor.mjs` followed by:
-
-```bash
-node scripts/patch-vendor.mjs
-```
-
-No dependency reinstall or vendor re-clone is required.
-
-
-## Output streams
-
-`fetch` reserves stdout for the final JSON document. PT-depiler `console.log`/`console.info`/`console.debug` output is suppressed by default. With `--debug`, those upstream diagnostics are redirected to stderr, so piping stdout to tools such as `jq` remains safe.
-
-
-### `list` filtering
-
-`pnpm cli list --db PATH` defaults to enabled, non-public indexers. `enabled` is read directly from the database. For Cardigann indexers, `privacy` is resolved from the cached `Definitions/<definitionFile>.yml` next to `prowlarr.db`; `privacySource` tells you whether this succeeded. Unknown privacy is retained rather than filtered. Use `--all` to include disabled/public entries.
+本项目代码使用 MIT License。PT-depiler 仍按其自身 MIT License 使用；`vendor/PT-depiler` 由 bootstrap 获取并保留上游许可证。

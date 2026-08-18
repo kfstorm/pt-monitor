@@ -31,11 +31,26 @@ function runtime(): NodeRuntime {
   return value;
 }
 
+function rot13(value: string): string {
+  return value.replace(/[A-Za-z]/g, (ch) => {
+    const base = ch <= "Z" ? 65 : 97;
+    return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
+  });
+}
+
+function decodeProtectedUrl(value: string): string {
+  // PT-depiler definitions may ROT13-protect a full tracker URL:
+  //   uggc://...  -> http://...
+  //   uggcf://... -> https://...
+  return /^uggcfs?:\/\//i.test(value) || /^uggcf?:\/\//i.test(value) ? rot13(value) : value;
+}
+
 function fullUrl(config: AxiosRequestConfig): string {
-  const raw = config.url ?? "/";
+  const raw = decodeProtectedUrl(config.url ?? "/");
   if (/^https?:\/\//i.test(raw)) return raw;
   if (!config.baseURL) throw new Error(`Cannot resolve relative URL without baseURL: ${raw}`);
-  return new URL(raw, config.baseURL).toString();
+  const baseURL = decodeProtectedUrl(config.baseURL);
+  return new URL(raw, baseURL).toString();
 }
 
 function responseText(response: AxiosResponse | undefined): string {
@@ -80,6 +95,12 @@ export const axios = axiosRaw.create();
 axios.interceptors.request.use(async (config) => {
   const rt = runtime();
   const url = fullUrl(config);
+
+  // Resolve protected/relative PT-depiler URLs before axios sees them. Axios'
+  // Node adapter cannot dispatch custom schemes such as `uggcf:`.
+  config.url = url;
+  config.baseURL = undefined;
+
   const headers = AxiosHeaders.from(config.headers);
   for (const [name, value] of Object.entries(rt.getRequestHeaders(url))) {
     if (!headers.has(name)) headers.set(name, value);

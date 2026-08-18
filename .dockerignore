@@ -1,0 +1,8 @@
+.git
+node_modules
+vendor/PT-depiler
+vendor/PT-depiler/node_modules
+data
+*.db
+*.db-wal
+*.db-shm

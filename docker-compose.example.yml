@@ -1,0 +1,23 @@
+services:
+  pt-monitor:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9709:9709"
+    volumes:
+      # Change the host path to your Prowlarr app-data directory.
+      - /data1/mediacenter/prowlarr/config:/prowlarr:ro
+      - ./data:/app/data
+    command:
+      - pnpm
+      - cli
+      - serve
+      - --db
+      - /prowlarr/prowlarr.db
+      - --listen
+      - 0.0.0.0
+      - --interval-minutes
+      - "30"
+      # Optional: explicit definitions are more reliable than auto-discovery.
+      # - --sites
+      # - hdtime,pter,ultrahd

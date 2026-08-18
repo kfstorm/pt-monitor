@@ -24,6 +24,22 @@ if (abstractSource.includes(socialImport)) {
 }
 writeFileSync(abstractPath, abstractSource);
 
+// PT-depiler assumes every Axios failure has `error.response`. Transport/setup
+// errors (unsupported protocol, DNS, TLS, timeout before response, etc.) do not.
+// Re-throw those so the original error reaches getUserInfoResult/debug output
+// instead of causing a misleading `loggedCheck(undefined)` TypeError.
+{
+  let source = readFileSync(abstractPath, "utf8");
+  const from = `    } catch (e) {\n      // 从 AxiosError 中获取 response\n      req = (e as AxiosError).response!;\n    }`;
+  const to = `    } catch (e) {\n      // Node transport/setup errors may not have an HTTP response. Preserve the\n      // original error instead of passing undefined into loggedCheck().\n      const errorResponse = (e as AxiosError).response;\n      if (!errorResponse) throw e;\n      req = errorResponse;\n    }`;
+  if (source.includes(from)) {
+    source = source.replace(from, to);
+    writeFileSync(abstractPath, source);
+  } else if (!source.includes("if (!errorResponse) throw e;")) {
+    throw new Error("Upstream AbstractBittorrentSite.ts changed: Axios catch block not found");
+  }
+}
+
 // filter.ts imports @ptd/social only for external-ID filters used by torrent search.
 // This PoC disables search entirely and only needs user-info collection, so keep
 // those filters as no-op string pass-throughs instead of pulling in the browser
@@ -178,12 +194,13 @@ writeFileSync(
       upstream: "pt-plugins/PT-depiler",
       commit: expectedCommit,
       patches: [
-        "replace browser site/utils/adapter.ts with Node adapter",
+        "replace browser site/utils/adapter.ts with Node adapter (including protected-URL decoding)",
         "stub @ptd/social supportSocialSite for user-info-only PoC",
         "stub @ptd/social socialParseUrlMap filters for user-info-only PoC",
         "rewrite remaining @ptd/site self aliases to relative imports",
         "inline tiny social helpers used by animebytes/mteam definitions",
         "replace import.meta.env.DEV inside site package",
+        "preserve Axios transport/setup errors that have no HTTP response",
       ],
     },
     null,

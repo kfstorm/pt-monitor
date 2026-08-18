@@ -1,7 +1,7 @@
 {
-  "name": "pt-monitor-ptdepiler-poc",
-  "version": "0.2.8",
-  "private": true,
+  "name": "pt-monitor",
+  "version": "0.3.0",
+  "private": false,
   "type": "module",
   "packageManager": "pnpm@10.21.0",
   "engines": {
@@ -10,7 +10,8 @@
   "scripts": {
     "bootstrap": "bash scripts/bootstrap.sh",
     "cli": "tsx src/cli.ts",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "serve": "tsx src/cli.ts serve"
   },
   "dependencies": {
     "jsdom": "^27.0.0"

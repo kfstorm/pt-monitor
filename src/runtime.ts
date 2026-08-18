@@ -45,7 +45,7 @@ export class NodeRuntime {
     }
 
     headers["User-Agent"] =
-      this.userAgentByHost.get(host) ?? this.options.http?.userAgent ?? "pt-monitor-ptdepiler-poc/0.2";
+      this.userAgentByHost.get(host) ?? this.options.http?.userAgent ?? "pt-monitor/0.3";
     return headers;
   }
 
