@@ -48,7 +48,8 @@ export async function serve(options: ServeOptions): Promise<void> {
           results.push({ definition, ok: true, statusName: collected.snapshot.statusName });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          process.stderr.write(`[pt-monitor] collect ${definition}: ${message}\n`);
+          const detail = error instanceof Error ? error.stack ?? message : String(error);
+          process.stderr.write(`[pt-monitor] collect ${definition}: ${detail}\n`);
           results.push({ definition, ok: false, error: message });
         }
       }

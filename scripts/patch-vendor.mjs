@@ -137,6 +137,14 @@ const buildImdb = (id: string): string => \`https://www.imdb.com/title/\${id}/\`
   },
 ]);
 
+patchTextFile("src/packages/site/schemas/NexusPHP.ts", [
+  {
+    from: "parseSizeString(sizeSelector.innerText.trim())",
+    to: 'parseSizeString((sizeSelector?.innerText ?? sizeSelector?.textContent ?? "").trim())',
+    marker: "sizeSelector?.innerText ?? sizeSelector?.textContent",
+  },
+]);
+
 function walk(path) {
   for (const name of readdirSync(path)) {
     const item = join(path, name);
@@ -201,6 +209,7 @@ writeFileSync(
         "inline tiny social helpers used by animebytes/mteam definitions",
         "replace import.meta.env.DEV inside site package",
         "preserve Axios transport/setup errors that have no HTTP response",
+        "fallback from missing jsdom innerText while parsing NexusPHP seeding size",
       ],
     },
     null,
