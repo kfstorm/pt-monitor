@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY scripts/ scripts/
 COPY patches/ patches/
+COPY src/rot13.ts src/rot13.ts
 RUN pnpm bootstrap
 
 COPY src/ src/
