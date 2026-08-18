@@ -30,4 +30,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Bootstrap vendored PT-depiler
+        run: pnpm bootstrap
+
       - uses: pre-commit/action@v3.0.1
