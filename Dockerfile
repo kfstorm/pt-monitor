@@ -6,11 +6,13 @@ RUN corepack enable
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm bootstrap
+RUN pnpm ui:build
 
 FROM node:24-bookworm-slim AS runtime
 

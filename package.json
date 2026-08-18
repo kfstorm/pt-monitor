@@ -10,8 +10,11 @@
   "scripts": {
     "bootstrap": "bash scripts/bootstrap.sh",
     "cli": "tsx src/cli.ts",
-    "test": "tsx --test tests/*.test.ts",
-    "serve": "tsx src/cli.ts serve"
+    "test": "tsx --test tests/*.test.ts && pnpm --filter pt-monitor-ui test",
+    "serve": "tsx src/cli.ts serve",
+    "ui:dev": "pnpm --filter pt-monitor-ui dev",
+    "ui:build": "pnpm --filter pt-monitor-ui build",
+    "ui:typecheck": "pnpm --filter pt-monitor-ui typecheck"
   },
   "dependencies": {
     "jsdom": "^27.0.0"
@@ -21,5 +24,10 @@
     "@types/node": "^24.0.0",
     "tsx": "^4.20.6",
     "typescript": "^6.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

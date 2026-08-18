@@ -10,7 +10,8 @@
 - PT-depiler 负责 NexusPHP / Gazelle / Unit3D 等站点差异
 - 单进程、单端口
 - 内置 SQLite，不要求 Prometheus/Grafana
-- Web UI 展示当前账号状态和 7 天简单趋势
+- Web UI 展示当前账号状态和 7 天可切换指标的趋势图
+- 前端为独立 React + Vite + shadcn/ui 工程，构建产物由内置服务器静态托管
 - 可选 FlareSolverr fallback
 - CLI 仍可单站调试
 - 不输出 Cookie 值
@@ -39,7 +40,7 @@ Prowlarr DB
     Web API
        │
        ▼
-    Web UI
+    Web UI（React + Vite，frontend/dist）
 ```
 
 ## 要求
@@ -55,6 +56,7 @@ Prowlarr DB
 corepack enable
 pnpm install
 pnpm bootstrap
+pnpm ui:build
 ```
 
 `pnpm bootstrap` 会拉取并固定 PT-depiler commit：
@@ -63,7 +65,7 @@ pnpm bootstrap
 82df7210244d9352d4f9792a17905f51f8ed2304
 ```
 
-然后应用 Node compatibility overlay。
+然后应用 Node compatibility overlay。`pnpm ui:build` 会构建前端到 `frontend/dist/`，内置服务器在启动时托管该目录；本地运行 Web UI 前需要先构建一次。
 
 ## 直接启动 Web UI
 
@@ -133,6 +135,29 @@ POST /api/collect
 ```
 
 API 不返回 Cookie。
+
+## 前端开发
+
+前端是 `frontend/` 下的独立 React + Vite + shadcn/ui（Tailwind v4）工程，与后端通过 pnpm workspace 管理：
+
+```bash
+# 终端 1：后端
+pnpm cli serve --db /path/to/prowlarr.db
+
+# 终端 2：前端 dev server（/api 代理到 127.0.0.1:9709）
+pnpm ui:dev
+```
+
+常用脚本：
+
+```text
+pnpm ui:dev           Vite dev server，端口 5173，/api 代理到后端
+pnpm ui:build         类型检查 + 生产构建到 frontend/dist/
+pnpm ui:typecheck     tsc 类型检查
+pnpm --filter pt-monitor-ui test    Vitest 单元测试
+```
+
+生产运行时（`pnpm cli serve` / Docker）只读取 `frontend/dist/` 构建产物，不需要 dev server。若 dist 不存在，访问首页会看到提示先运行 `pnpm ui:build`，API 仍可用。
 
 ## CLI
 
@@ -262,12 +287,17 @@ DEBUG                       设 1 或 true 开启 PT-depiler 调试日志
 pnpm test
 ```
 
+`pnpm test` 会顺序运行后端 `tsx --test` 测试和前端 Vitest 测试。
+
 当前覆盖：
 
 - Prowlarr configured/runtime Cookie merge
 - Prowlarr enabled/privacy 解析
 - normalized snapshot
 - SQLite latest/history
+- 前端 format/metrics 工具函数
+- MetricSelector 的 localStorage 持久化与切换
+- TrendChart 的渲染、空状态与断档
 
 ## v0.3.0 仍然没有做
 

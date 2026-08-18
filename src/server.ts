@@ -1,8 +1,31 @@
+import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { extname, resolve } from "node:path";
 
 import { collectSite, discoverSiteTargets, type SiteTarget } from "./collector.ts";
 import { SnapshotStore } from "./store.ts";
-import { dashboardHtml } from "./ui.ts";
+
+const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
+
+const ASSET_CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+};
+
+const UI_MISSING_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><title>PT Monitor</title></head>
+<body style="font-family:ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#eef2f7;display:flex;justify-content:center;padding-top:80px">
+<main style="max-width:640px;padding:0 24px"><h1>PT Monitor</h1>
+<p style="color:#9199a5">The web UI has not been built yet.</p>
+<pre style="background:#111419;border:1px solid #222832;border-radius:12px;padding:16px;overflow:auto">pnpm ui:build</pre>
+<p style="color:#9199a5">API endpoints are still available at <code>/api/health</code>, <code>/api/sites</code>, and <code>/api/collect</code>.</p>
+</main></body></html>`;
 
 export interface ServeOptions {
   prowlarrDb: string;
@@ -111,9 +134,8 @@ async function route(
   collectAll: () => Promise<Array<Record<string, unknown>>>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
-  if (req.method === "GET" && url.pathname === "/") {
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-    res.end(dashboardHtml);
+  if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
+    serveStatic(res, url.pathname);
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/health") {
@@ -142,6 +164,27 @@ async function route(
     return;
   }
   writeJson(res, 404, { error: "not found" });
+}
+
+function serveStatic(res: ServerResponse, pathname: string): void {
+  const fileName = pathname === "/" ? "index.html" : pathname.slice(1);
+  const filePath = resolve(UI_DIR, fileName);
+  if (!filePath.startsWith(UI_DIR) || !existsSync(filePath)) {
+    if (pathname === "/") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.end(UI_MISSING_HTML);
+      return;
+    }
+    writeJson(res, 404, { error: "not found" });
+    return;
+  }
+  const contentType = ASSET_CONTENT_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream";
+  const immutable = pathname.startsWith("/assets/");
+  res.writeHead(200, {
+    "content-type": contentType,
+    "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-store",
+  });
+  createReadStream(filePath).pipe(res);
 }
 
 function writeJson(res: ServerResponse, status: number, value: unknown): void {

@@ -10,3 +10,5 @@ data
 tests
 README.md
 LICENSE
+frontend/dist
+frontend/node_modules
