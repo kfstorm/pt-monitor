@@ -7,6 +7,7 @@ Node.js 24 + TypeScript 项目：从 Prowlarr 读取 indexer 认证信息，调�
 - `corepack enable && pnpm install`: 安装依赖。
 - `pnpm bootstrap`: 下载固定版本的 PT-depiler 并应用 Node overlay；首次运行或更新 vendor 后执行。
 - `pre-commit run --all-files`: 全量质量检查；CI 在 PR 上执行同一套。
+- `pre-commit install`: 安装 git pre-commit hook，让每次提交自动对暂存文件执行检查（新文件需先 `git add` 才会被检查）。
 - `scripts/check-backend.sh`: 后端类型检查（`tsc --noEmit`）。
 - `scripts/check-frontend.sh`: 前端格式、lint、typecheck 与构建。
 - `scripts/check-markdown.sh`: 文档规范检查。

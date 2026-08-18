@@ -123,7 +123,7 @@ pnpm ui:build                  # 构建前端到 frontend/dist（本地运行前
 pnpm ui:dev                    # Vite dev server，/api 代理到 127.0.0.1:9709
 ```
 
-`pre-commit run --all-files` 会跑上述全部检查；PR 的 CI 执行同一套，另外构建多架构 Docker 镜像。
+`pre-commit run --all-files` 会跑上述全部检查；PR 的 CI 执行同一套，另外构建多架构 Docker 镜像。先 `pre-commit install` 让每次 `git commit` 自动对暂存文件执行这些检查。
 
 - `vendor/PT-depiler` 由 `pnpm bootstrap` 按固定 commit 拉取并应用 Node 兼容 overlay，vendor 更新后重新运行 bootstrap。
 - 采集结果存入 SQLite `snapshots` 表（保留原始 PT-depiler JSON），不存 Cookie。
