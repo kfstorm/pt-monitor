@@ -1,0 +1,17 @@
+{
+  "ignore": [
+    ".github/workflows/**",
+    "docs/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/vendor/**",
+    "data/**",
+    "**/*.lock"
+  ],
+  "format": ["javascript", "typescript", "tsx", "css"],
+  "minLines": 5,
+  "threshold": 0,
+  "reporters": ["ai"],
+  "noTips": true
+}

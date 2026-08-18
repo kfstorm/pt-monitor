@@ -1,0 +1,45 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-case-conflict
+
+  - repo: local
+    hooks:
+      - id: backend-checks
+        name: Backend typecheck
+        entry: scripts/check-backend.sh
+        language: system
+        files: ^(src/|tests/|tsconfig\.json$|scripts/check-backend\.sh$)
+        pass_filenames: false
+
+      - id: frontend-checks
+        name: Frontend typecheck and build
+        entry: scripts/check-frontend.sh
+        language: system
+        files: ^(frontend/|pnpm-workspace\.yaml$|scripts/check-frontend\.sh$)
+        pass_filenames: false
+
+      - id: unit-tests
+        name: Backend and frontend tests
+        entry: scripts/test.sh
+        language: system
+        files: ^(src/|tests/|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/test\.sh$)
+        pass_filenames: false
+
+      - id: duplication
+        name: Duplication check
+        entry: scripts/check-duplication.sh
+        language: system
+        files: ^(src/|tests/|frontend/src/|\.jscpd\.json$|scripts/check-duplication\.sh$)
+        pass_filenames: false
+
+default_stages: [pre-commit]
+fail_fast: false
