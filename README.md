@@ -2,6 +2,14 @@
 
 自托管 PT 账号状态仪表盘：复用 Prowlarr 的登录 Cookie 与 PT-depiler 的站点解析，自动采集各站账号的上传/下载/分享率/魔力/做种/H&R 状态，以 Web 面板与趋势图展示，历史存入内置 SQLite。
 
+## 和 PT-depiler 的区别
+
+PT-depiler 是浏览器插件，负责在浏览网页时帮你搜索种子、批量下载、联动下载器等。PT Monitor 不包含这些高级功能，只专注一件事：把各 PT 站的账号数据（上传、下载、分享率、魔力等）采集起来，做成随时能看的仪表盘。
+
+它复用 PT-depiler 的站点解析代码，但不是 PT-depiler 的分支或替代品。
+
+因为 PT Monitor 可以部署在 NAS 或服务器上，用手机、平板等任何设备打开网页就能查看数据；而 PT-depiler 必须在电脑浏览器里装插件、保持登录才能看到。
+
 ![PT Monitor 界面](docs/screenshot.webp)
 
 ## 目录
