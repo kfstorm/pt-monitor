@@ -12,6 +12,7 @@ import axiosRaw, {
 } from "axios";
 
 import type { ISiteUserConfig } from "../types";
+import { rot13 } from "./rot13.ts";
 
 interface NodeRuntime {
   getRequestHeaders(url: string): Record<string, string>;
@@ -29,13 +30,6 @@ function runtime(): NodeRuntime {
   const value = (globalThis as any).__PT_MONITOR_RUNTIME__ as NodeRuntime | undefined;
   if (!value) throw new Error("PT monitor Node runtime has not been installed");
   return value;
-}
-
-function rot13(value: string): string {
-  return value.replace(/[A-Za-z]/g, (ch) => {
-    const base = ch <= "Z" ? 65 : 97;
-    return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
-  });
 }
 
 function decodeProtectedUrl(value: string): string {

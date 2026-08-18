@@ -11,6 +11,12 @@ const adapterSource = resolve(root, "patches/adapter.node.ts");
 const adapterTarget = resolve(vendor, "src/packages/site/utils/adapter.ts");
 cpSync(adapterSource, adapterTarget);
 
+// The Node adapter shares the ROT13 URL decoder with the collector; copy the
+// helper next to the adapter so the vendored file stays self-contained.
+const rot13Source = resolve(root, "src/rot13.ts");
+const rot13Target = resolve(vendor, "src/packages/site/utils/rot13.ts");
+cpSync(rot13Source, rot13Target);
+
 const abstractPath = resolve(vendor, "src/packages/site/schemas/AbstractBittorrentSite.ts");
 let abstractSource = readFileSync(abstractPath, "utf8");
 const socialImport = 'import { supportSocialSite } from "@ptd/social";';
@@ -203,6 +209,7 @@ writeFileSync(
       commit: expectedCommit,
       patches: [
         "replace browser site/utils/adapter.ts with Node adapter (including protected-URL decoding)",
+        "copy shared ROT13 URL decoder next to the Node adapter",
         "stub @ptd/social supportSocialSite for user-info-only PoC",
         "stub @ptd/social socialParseUrlMap filters for user-info-only PoC",
         "rewrite remaining @ptd/site self aliases to relative imports",

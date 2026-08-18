@@ -10,6 +10,7 @@ import { NodeRuntime, installRuntime } from "./runtime.ts";
 import { installDomGlobals } from "./dom.ts";
 import { withUpstreamConsole } from "./upstream-console.ts";
 import { normalizeUserInfo, type AccountSnapshot } from "./normalize.ts";
+import { rot13 } from "./rot13.ts";
 
 let domInstalled = false;
 
@@ -86,13 +87,6 @@ export function findProwlarrIndexer(db: ProwlarrDB, definition: string, explicit
 
 function normalized(value: unknown): string {
   return typeof value === "string" ? value.toLocaleLowerCase().replace(/[^a-z0-9]/g, "") : "";
-}
-
-function rot13(value: string): string {
-  return value.replace(/[A-Za-z]/g, (ch) => {
-    const base = ch <= "Z" ? 65 : 97;
-    return String.fromCharCode(((ch.charCodeAt(0) - base + 13) % 26) + base);
-  });
 }
 
 function decodeUrl(value: string): string {
