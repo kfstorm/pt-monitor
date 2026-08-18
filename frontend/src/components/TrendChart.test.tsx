@@ -63,7 +63,7 @@ describe("TrendChart", () => {
       />,
     );
 
-    expect(screen.getByText("8/18 21:37")).toBeInTheDocument();
+    expect(screen.getByText("8/18 13:37")).toBeInTheDocument();
     expect(screen.getByText("Uploaded")).toBeInTheDocument();
     expect(screen.getByText("7.78 TiB")).toBeInTheDocument();
   });
