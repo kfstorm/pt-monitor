@@ -13,5 +13,7 @@ case "${1:-}" in
   ;;
 esac
 
+pnpm ui:format:check
+pnpm ui:lint
 pnpm ui:typecheck
 pnpm ui:build

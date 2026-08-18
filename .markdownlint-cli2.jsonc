@@ -1,0 +1,8 @@
+{
+  "config": {
+    "MD013": false,
+    "MD036": false
+  },
+  "globs": ["README.md", "AGENTS.md", "docs/**/*.md"],
+  "ignores": ["node_modules/**", "vendor/**", "frontend/dist/**", "**/*.snap"]
+}

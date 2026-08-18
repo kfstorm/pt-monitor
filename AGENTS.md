@@ -6,8 +6,11 @@ Node.js 24 + TypeScript 项目：从 Prowlarr 读取 indexer 认证信息，调�
 
 - `corepack enable && pnpm install`: 安装依赖。
 - `pnpm bootstrap`: 下载固定版本的 PT-depiler 并应用 Node overlay；首次运行或更新 vendor 后执行。
-- `pnpm test`: 运行全部测试。
-- `pnpm exec tsc --noEmit`: 执行 TypeScript 类型检查。
+- `pre-commit run --all-files`: 全量质量检查；CI 在 PR 上执行同一套。
+- `scripts/check-backend.sh`: 后端类型检查（`tsc --noEmit`）。
+- `scripts/check-frontend.sh`: 前端格式、lint、typecheck 与构建。
+- `scripts/check-markdown.sh`: 文档规范检查。
+- `scripts/test.sh`: 运行全部测试。
 - `pnpm cli doctor --db /path/to/prowlarr.db`: 检查 Prowlarr DB、vendor 和运行环境。
 - `pnpm cli list --db /path/to/prowlarr.db --all`: 查看 indexer 名称、definition、Cookie 名称和过期时间，不输出 Cookie 值。
 - `pnpm cli fetch DEFINITION --db /path/to/prowlarr.db --debug`: 单站调试采集。
@@ -43,6 +46,6 @@ Node.js 24 + TypeScript 项目：从 Prowlarr 读取 indexer 认证信息，调�
 
 ## Verification
 
-- 代码改动至少运行 `pnpm test` 和 `pnpm exec tsc --noEmit`。
+- 代码改动至少运行 `scripts/test.sh` 和 `scripts/check-backend.sh`；提交前运行 `pre-commit run --all-files` 通过全部 hook。
 - 涉及 Prowlarr 解析或站点发现时，额外运行 `pnpm cli list --db ... --all` 或等价的脱敏 fixture 测试，确认每个候选 indexer 都有匹配/跳过诊断。
 - 涉及真实站点请求时使用 `--debug`，只检查状态、请求目标和错误类型；不要打印完整 HTML、Cookie 或认证 header。

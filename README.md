@@ -113,11 +113,17 @@ Docker 下用 `FLARESOLVERR_URL` 环境变量。FlareSolverr 拿到的 Cookie �
 ## 开发
 
 ```bash
-pnpm test                 # 后端 tsx 测试 + 前端 Vitest
-pnpm exec tsc --noEmit    # 后端类型检查
-pnpm ui:build             # 构建前端到 frontend/dist
-pnpm ui:dev               # Vite dev server，/api 代理到 127.0.0.1:9709
+scripts/check-backend.sh       # 后端类型检查
+scripts/check-frontend.sh      # 前端格式、lint、typecheck 与构建
+scripts/check-markdown.sh      # 文档规范检查
+scripts/test.sh                # 后端 tsx 测试 + 前端 Vitest
+scripts/check-duplication.sh   # jscpd 重复代码检查（阈值 0）
+
+pnpm ui:build                  # 构建前端到 frontend/dist（本地运行前端前执行一次）
+pnpm ui:dev                    # Vite dev server，/api 代理到 127.0.0.1:9709
 ```
+
+`pre-commit run --all-files` 会跑上述全部检查；PR 的 CI 执行同一套，另外构建多架构 Docker 镜像。
 
 - `vendor/PT-depiler` 由 `pnpm bootstrap` 按固定 commit 拉取并应用 Node 兼容 overlay，vendor 更新后重新运行 bootstrap。
 - 采集结果存入 SQLite `snapshots` 表（保留原始 PT-depiler JSON），不存 Cookie。

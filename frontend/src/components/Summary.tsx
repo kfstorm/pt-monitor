@@ -19,7 +19,10 @@ export function Summary({ sites }: SummaryProps) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-xl border border-border/50 bg-card px-4 py-3">
+        <div
+          key={card.label}
+          className="rounded-xl border border-border/50 bg-card px-4 py-3"
+        >
           <div className="text-2xl font-semibold tabular-nums">{card.value}</div>
           <div className="text-xs text-muted-foreground">{card.label}</div>
         </div>

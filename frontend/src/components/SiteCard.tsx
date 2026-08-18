@@ -46,14 +46,19 @@ export function SiteCard({ site, history, metricKey }: SiteCardProps) {
       <CardContent>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {metrics.map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+            <div
+              key={label}
+              className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2"
+            >
               <div className="text-[11px] text-muted-foreground">{label}</div>
               <div className="truncate font-medium tabular-nums">{value}</div>
             </div>
           ))}
         </div>
         <div className="mt-4">
-          <div className="mb-1 text-xs text-muted-foreground">{METRICS[metricKey].label}</div>
+          <div className="mb-1 text-xs text-muted-foreground">
+            {METRICS[metricKey].label}
+          </div>
           <TrendChart history={history} metricKey={metricKey} />
         </div>
       </CardContent>

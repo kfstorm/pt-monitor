@@ -6,6 +6,7 @@ repos:
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
+      - id: check-toml
       - id: check-json
       - id: check-added-large-files
       - id: check-merge-conflict
@@ -15,16 +16,23 @@ repos:
     hooks:
       - id: backend-checks
         name: Backend typecheck
-        entry: scripts/check-backend.sh
+        entry: scripts/check-backend.sh --check
         language: system
         files: ^(src/|tests/|tsconfig\.json$|scripts/check-backend\.sh$)
         pass_filenames: false
 
       - id: frontend-checks
-        name: Frontend typecheck and build
-        entry: scripts/check-frontend.sh
+        name: Frontend format, lint, typecheck and build
+        entry: scripts/check-frontend.sh --check
         language: system
         files: ^(frontend/|pnpm-workspace\.yaml$|scripts/check-frontend\.sh$)
+        pass_filenames: false
+
+      - id: markdown-lint
+        name: Markdown lint
+        entry: scripts/check-markdown.sh
+        language: system
+        files: ^(README\.md$|AGENTS\.md$|docs/.*\.md$)
         pass_filenames: false
 
       - id: unit-tests
@@ -36,7 +44,7 @@ repos:
 
       - id: duplication
         name: Duplication check
-        entry: scripts/check-duplication.sh
+        entry: scripts/check-duplication.sh --check
         language: system
         files: ^(src/|tests/|frontend/src/|\.jscpd\.json$|scripts/check-duplication\.sh$)
         pass_filenames: false
