@@ -20,13 +20,23 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-") || id.includes("node_modules/victory-vendor")) {
+          if (
+            id.includes("node_modules/recharts") ||
+            id.includes("node_modules/d3-") ||
+            id.includes("node_modules/victory-vendor")
+          ) {
             return "charts";
           }
-          if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) {
+          if (
+            id.includes("node_modules/react") ||
+            id.includes("node_modules/scheduler")
+          ) {
             return "react";
           }
-          if (id.includes("node_modules/radix-ui") || id.includes("node_modules/@radix-ui")) {
+          if (
+            id.includes("node_modules/radix-ui") ||
+            id.includes("node_modules/@radix-ui")
+          ) {
             return "radix";
           }
         },
@@ -37,5 +47,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    env: {
+      TZ: "UTC",
+    },
   },
 });

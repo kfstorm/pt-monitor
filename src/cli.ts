@@ -92,17 +92,23 @@ function json(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function runtimeOptions(args: ParsedArgs) {
+  return {
+    timeoutMs: intOption(args, "timeout-ms", 30_000),
+    userAgent: option(args, "user-agent") ?? "pt-monitor/0.3",
+    flaresolverrUrl: option(args, "flaresolverr-url"),
+    flaresolverrTimeoutMs: intOption(args, "flaresolverr-timeout-ms", 90_000),
+    debug: args.options.get("debug") === true,
+  };
+}
+
 function collectOptions(definition: string, args: ParsedArgs) {
   return {
     prowlarrDb: requiredOption(args, "db"),
     definition,
     indexer: indexerSelector(option(args, "indexer")),
     baseUrl: option(args, "base-url"),
-    timeoutMs: intOption(args, "timeout-ms", 30_000),
-    userAgent: option(args, "user-agent") ?? "pt-monitor/0.3",
-    flaresolverrUrl: option(args, "flaresolverr-url"),
-    flaresolverrTimeoutMs: intOption(args, "flaresolverr-timeout-ms", 90_000),
-    debug: args.options.get("debug") === true,
+    ...runtimeOptions(args),
   };
 }
 
@@ -179,11 +185,7 @@ async function serveCommand(args: ParsedArgs): Promise<void> {
     listen: option(args, "listen") ?? "127.0.0.1",
     port: intOption(args, "port", 9709),
     intervalMinutes: intOption(args, "interval-minutes", 30),
-    timeoutMs: intOption(args, "timeout-ms", 30_000),
-    userAgent: option(args, "user-agent") ?? "pt-monitor/0.3",
-    flaresolverrUrl: option(args, "flaresolverr-url"),
-    flaresolverrTimeoutMs: intOption(args, "flaresolverr-timeout-ms", 90_000),
-    debug: args.options.get("debug") === true,
+    ...runtimeOptions(args),
   });
 }
 

@@ -10,8 +10,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json frontend/
 RUN pnpm install --frozen-lockfile
 
-COPY scripts/ scripts/
+COPY scripts/bootstrap.sh scripts/bootstrap.sh
+COPY scripts/patch-vendor.mjs scripts/patch-vendor.mjs
 COPY patches/ patches/
+COPY src/rot13.ts src/rot13.ts
 RUN pnpm bootstrap
 
 COPY src/ src/

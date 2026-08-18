@@ -14,6 +14,9 @@
     "serve": "tsx src/cli.ts serve",
     "ui:dev": "pnpm --filter pt-monitor-ui dev",
     "ui:build": "pnpm --filter pt-monitor-ui build",
+    "ui:lint": "pnpm --filter pt-monitor-ui lint",
+    "ui:format": "pnpm --filter pt-monitor-ui format",
+    "ui:format:check": "pnpm --filter pt-monitor-ui format:check",
     "ui:typecheck": "pnpm --filter pt-monitor-ui typecheck"
   },
   "dependencies": {
@@ -22,6 +25,8 @@
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
     "@types/node": "^24.0.0",
+    "jscpd": "5.0.14",
+    "markdownlint-cli2": "^0.23.2",
     "tsx": "^4.20.6",
     "typescript": "^6.0.0"
   },

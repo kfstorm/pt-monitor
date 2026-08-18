@@ -22,7 +22,12 @@ export function fmtRatio(
   downloaded?: number | null,
 ): string {
   if (value == null) {
-    if (uploaded != null && downloaded != null && Number(uploaded) > 0 && Number(downloaded) === 0) {
+    if (
+      uploaded != null &&
+      downloaded != null &&
+      Number(uploaded) > 0 &&
+      Number(downloaded) === 0
+    ) {
       return "∞";
     }
     return "–";

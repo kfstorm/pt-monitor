@@ -24,7 +24,10 @@ export default function App() {
       const nextSites = await fetchSites();
       setSites(nextSites);
       const entries = await Promise.all(
-        nextSites.map(async (site) => [site.definition, await fetchHistory(site.definition)] as const),
+        nextSites.map(
+          async (site) =>
+            [site.definition, await fetchHistory(site.definition)] as const,
+        ),
       );
       setHistories(Object.fromEntries(entries));
       setError(null);
@@ -36,6 +39,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState only runs after await
     void load();
     const timer = setInterval(() => void load(), 60_000);
     return () => clearInterval(timer);
@@ -51,7 +55,9 @@ export default function App() {
     }
   }, [load]);
 
-  const updated = sites.length ? Math.max(...sites.map((site) => site.collectedAt)) : null;
+  const updated = sites.length
+    ? Math.max(...sites.map((site) => site.collectedAt))
+    : null;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

@@ -34,7 +34,9 @@ export function TrendTooltipContent({ active, payload, metricKey }: TrendTooltip
       <div className="mt-0.5 flex items-center gap-1.5">
         <span className="h-2 w-2 shrink-0 rounded-[2px] bg-(--chart-1)" />
         <span className="text-muted-foreground">{meta.label}</span>
-        <span className="font-mono font-medium tabular-nums">{meta.fmt(point.value)}</span>
+        <span className="font-mono font-medium tabular-nums">
+          {meta.fmt(point.value)}
+        </span>
       </div>
     </div>
   );

@@ -1,7 +1,12 @@
 import type { Site } from "@/types";
 
 function toNumber(value: unknown): number | null {
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
   return Number.isNaN(n) ? null : n;
 }
 
