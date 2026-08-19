@@ -3,13 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { MetricSelector } from "@/components/MetricSelector";
+import i18n from "@/i18n";
 import { METRICS, type MetricKey } from "@/lib/metrics";
 import { useMetric } from "@/lib/use-metric";
 
 const STORAGE_KEY = "pt-monitor.metric";
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear();
+  await i18n.changeLanguage("en");
 });
 
 describe("useMetric", () => {
@@ -48,11 +50,13 @@ describe("MetricSelector", () => {
     render(<MetricSelector value={value} onValueChange={onChange} />);
 
     expect(screen.getByRole("combobox", { name: "Trend metric" })).toHaveTextContent(
-      METRICS.bonusPerHour.label,
+      i18n.t(METRICS.bonusPerHour.label),
     );
 
     await user.click(screen.getByRole("combobox", { name: "Trend metric" }));
-    await user.click(await screen.findByRole("option", { name: METRICS.ratio.label }));
+    await user.click(
+      await screen.findByRole("option", { name: i18n.t(METRICS.ratio.label) }),
+    );
 
     expect(value).toBe("ratio");
   });

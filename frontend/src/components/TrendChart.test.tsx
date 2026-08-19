@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { TrendChart, TrendTooltipContent } from "@/components/TrendChart";
+import i18n from "@/i18n";
 import type { Site } from "@/types";
 
 function point(collectedAt: number, value: number | null): Site {
@@ -26,6 +27,10 @@ function point(collectedAt: number, value: number | null): Site {
 }
 
 describe("TrendChart", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("shows a placeholder with fewer than two plottable points", () => {
     render(<TrendChart history={[point(1, 5)]} metricKey="bonusPerHour" />);
     expect(screen.getByText("Not enough history to draw")).toBeInTheDocument();

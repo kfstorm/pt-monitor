@@ -28,6 +28,10 @@ describe("fmtNum", () => {
   it("renders an en dash for null", () => {
     expect(fmtNum(null)).toBe("–");
   });
+
+  it("uses the selected locale", () => {
+    expect(fmtNum(1234.5, "zh")).toBe("1,234.5");
+  });
 });
 
 describe("fmtRatio", () => {
@@ -54,6 +58,7 @@ describe("fmtTime", () => {
   it("formats timestamps and missing values", () => {
     expect(fmtTime(1700000000000)).not.toBe("never");
     expect(fmtTime(null)).toBe("never");
+    expect(fmtTime(null, "zh")).toBe("从未");
   });
 });
 
@@ -61,5 +66,6 @@ describe("fmtDay", () => {
   it("formats a timestamp as local date and time", () => {
     const d = new Date(2024, 0, 15, 9, 5);
     expect(fmtDay(d.getTime())).toBe("1/15 09:05");
+    expect(fmtDay(d.getTime(), "zh")).toBe("1月15日 09:05");
   });
 });

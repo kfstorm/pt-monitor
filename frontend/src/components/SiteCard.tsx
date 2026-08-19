@@ -1,5 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
+
 import { fmtBytes, fmtNum, fmtRatio, fmtTime } from "@/lib/format";
 import { METRICS, type MetricKey } from "@/lib/metrics";
 import { statusInfo } from "@/lib/status";
@@ -13,20 +15,22 @@ interface SiteCardProps {
 }
 
 export function SiteCard({ site, history, metricKey }: SiteCardProps) {
-  const status = statusInfo(site.statusName);
+  const { t, i18n } = useTranslation();
+  const status = statusInfo(site.statusName, t);
+  const locale = i18n.language;
 
   const metrics: Array<[string, string]> = [
-    ["Ratio", fmtRatio(site.ratio, site.uploaded, site.downloaded)],
-    ["Uploaded", fmtBytes(site.uploaded)],
-    ["Downloaded", fmtBytes(site.downloaded)],
-    ["Bonus", fmtNum(site.bonus)],
-    ["Bonus / hour", fmtNum(site.bonusPerHour)],
-    ["Seeding", fmtNum(site.seedingCount)],
-    ["Seeding size", fmtBytes(site.seedingSize)],
-    ["Seeding bonus", fmtNum(site.seedingBonus)],
-    ["H&R", fmtNum(site.hnrUnsatisfied)],
-    ["H&R warning", fmtNum(site.hnrPreWarning)],
-    ["Collected", fmtTime(site.collectedAt)],
+    [t("metric.ratio"), fmtRatio(site.ratio, site.uploaded, site.downloaded, locale)],
+    [t("metric.uploaded"), fmtBytes(site.uploaded, locale)],
+    [t("metric.downloaded"), fmtBytes(site.downloaded, locale)],
+    [t("metric.bonus"), fmtNum(site.bonus, locale)],
+    [t("metric.bonusPerHour"), fmtNum(site.bonusPerHour, locale)],
+    [t("metric.seedingCount"), fmtNum(site.seedingCount, locale)],
+    [t("metric.seedingSize"), fmtBytes(site.seedingSize, locale)],
+    [t("metric.seedingBonus"), fmtNum(site.seedingBonus, locale)],
+    [t("metric.hnrUnsatisfied"), fmtNum(site.hnrUnsatisfied, locale)],
+    [t("metric.hnrPreWarning"), fmtNum(site.hnrPreWarning, locale)],
+    [t("metric.collected"), fmtTime(site.collectedAt, locale)],
   ];
 
   return (
@@ -57,7 +61,7 @@ export function SiteCard({ site, history, metricKey }: SiteCardProps) {
         </div>
         <div className="mt-4">
           <div className="mb-1 text-xs text-muted-foreground">
-            {METRICS[metricKey].label}
+            {t(METRICS[metricKey].label)}
           </div>
           <TrendChart history={history} metricKey={metricKey} />
         </div>
