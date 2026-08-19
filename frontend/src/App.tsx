@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteList } from "@/components/SiteList";
 import { Summary } from "@/components/Summary";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { fmtTime } from "@/lib/format";
 import { useMetric } from "@/lib/use-metric";
 import type { Site } from "@/types";
@@ -105,6 +106,7 @@ export default function App() {
           >
             <Languages />
           </Button>
+          <ThemeToggle />
           <Button onClick={() => void refresh()} disabled={collecting}>
             {collecting ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             {collecting ? t("action.collecting") : t("action.collectNow")}
