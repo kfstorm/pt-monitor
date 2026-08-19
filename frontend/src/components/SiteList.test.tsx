@@ -1,6 +1,6 @@
-import { render, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SiteList } from "@/components/SiteList";
 import i18n from "@/i18n";
@@ -29,13 +29,20 @@ function site(partial: Partial<Site>): Site {
 }
 
 function renderList(sites: Site[]) {
-  return render(<SiteList sites={sites} histories={{}} metricKey="bonusPerHour" />);
+  return render(
+    <SiteList
+      sites={sites}
+      histories={{}}
+      metricKey="bonusPerHour"
+      onMetricChange={() => {}}
+    />,
+  );
 }
 
 function definitions(container: HTMLElement): string[] {
-  return Array.from(
-    container.querySelectorAll("tbody tr td:first-child div:first-child"),
-  ).map((el) => el.textContent ?? "");
+  return Array.from(container.querySelectorAll("tbody tr[data-definition]")).map(
+    (el) => el.getAttribute("data-definition") ?? "",
+  );
 }
 
 function trafficHeader(container: HTMLElement) {
@@ -131,5 +138,45 @@ describe("SiteList", () => {
     expect(rows[0].textContent).toContain("2.00 KiB");
     expect(rows[0].textContent).toContain("1.00 KiB");
     expect(rows[0].textContent).toContain("1,234.5");
+  });
+
+  it("renders the status badge inside the site column", () => {
+    const { container } = renderList([site({ statusName: "needLogin" })]);
+    const cell = container.querySelector("tbody td:first-child");
+    expect(cell?.textContent).toContain("Login failed");
+  });
+
+  it("shows the site name without the definition id", () => {
+    const { container } = renderList([
+      site({ definition: "chdbits", prowlarrIndexerName: "CHDBits" }),
+    ]);
+    const cell = container.querySelector("tbody td:first-child");
+    expect(cell?.textContent).toContain("CHDBits");
+    expect(cell?.textContent).not.toContain("chdbits");
+  });
+
+  it("renders all columns without responsive hiding", () => {
+    const { container } = renderList([site({})]);
+    expect(container.querySelectorAll("thead th.hidden, tbody td.hidden")).toHaveLength(
+      0,
+    );
+  });
+
+  it("switches the trend metric from the column header", async () => {
+    const user = userEvent.setup();
+    const onMetricChange = vi.fn();
+    const { container } = render(
+      <SiteList
+        sites={[]}
+        histories={{}}
+        metricKey="bonusPerHour"
+        onMetricChange={onMetricChange}
+      />,
+    );
+
+    await user.click(within(container).getByRole("combobox", { name: "Trend metric" }));
+    await user.click(await screen.findByRole("option", { name: "Ratio" }));
+
+    expect(onMetricChange).toHaveBeenCalledWith("ratio");
   });
 });

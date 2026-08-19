@@ -12,20 +12,16 @@ describe("i18n", () => {
     expect(i18n.t("metric.bonusPerHour")).toBe("Bonus Gained Per Hour");
     expect(i18n.t("metric.seedingBonus")).toBe("Seed Points");
     expect(i18n.t("table.site")).toBe("Site");
-    expect(i18n.t("table.status")).toBe("Status");
     expect(i18n.t("table.user")).toBe("User");
     expect(i18n.t("table.traffic")).toBe("Traffic");
-    expect(i18n.t("table.trend")).toBe("Trend");
 
     await i18n.changeLanguage("zh");
 
     expect(i18n.t("metric.bonusPerHour")).toBe("时魔值");
     expect(i18n.t("metric.seedingBonus")).toBe("做种积分");
     expect(i18n.t("table.site")).toBe("站点");
-    expect(i18n.t("table.status")).toBe("状态");
     expect(i18n.t("table.user")).toBe("用户");
     expect(i18n.t("table.traffic")).toBe("流量");
-    expect(i18n.t("table.trend")).toBe("趋势");
   });
 
   it("persists the selected language in local storage", async () => {

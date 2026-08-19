@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { TrendChart } from "@/components/TrendChart";
+import { MetricSelector } from "@/components/MetricSelector";
 import { Badge } from "@/components/ui/badge";
 import { fmtBytes, fmtNum, fmtRatio, fmtTime } from "@/lib/format";
 import type { MetricKey } from "@/lib/metrics";
@@ -21,15 +22,7 @@ interface SiteListProps {
   sites: Site[];
   histories: Record<string, Site[]>;
   metricKey: MetricKey;
-}
-
-const STATUS_RANK: Record<string, number> = {
-  success: 0,
-  passParse: 1,
-};
-
-function statusRank(name: string): number {
-  return STATUS_RANK[name] ?? 2;
+  onMetricChange: (key: MetricKey) => void;
 }
 
 function compareSites(a: Site, b: Site, sort: SiteSort): number {
@@ -40,11 +33,6 @@ function compareSites(a: Site, b: Site, sort: SiteSort): number {
   if (av == null && bv == null) return 0;
   if (av == null) return 1;
   if (bv == null) return -1;
-
-  if (sort.key === "statusName") {
-    const rank = statusRank(String(av)) - statusRank(String(bv));
-    return rank !== 0 ? dir * rank : dir * String(av).localeCompare(String(bv));
-  }
 
   if (typeof av === "string" && typeof bv === "string") {
     return dir * av.localeCompare(bv, undefined, { sensitivity: "base" });
@@ -113,7 +101,12 @@ function SortHeader({
 const siteCell =
   "sticky left-0 z-10 border-r border-border/50 bg-card px-3 py-2 transition-colors";
 
-export function SiteList({ sites, histories, metricKey }: SiteListProps) {
+export function SiteList({
+  sites,
+  histories,
+  metricKey,
+  onMetricChange,
+}: SiteListProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const [sort, cycleSort] = useSiteSort();
@@ -135,15 +128,7 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                 sort={sort}
                 onSort={cycleSort}
                 align="start"
-                className="sticky left-0 z-20 w-40 border-r border-border/50"
-              />
-              <SortHeader
-                label={t("table.status")}
-                sortKey="statusName"
-                sort={sort}
-                onSort={cycleSort}
-                align="start"
-                className="w-24"
+                className="sticky left-0 z-20 w-44 border-r border-border/50 bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
               />
               <SortHeader
                 label={t("table.user")}
@@ -151,7 +136,7 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                 sort={sort}
                 onSort={cycleSort}
                 align="start"
-                className="hidden w-28 lg:table-cell"
+                className="w-28"
               />
               <SortHeader
                 label={t("table.traffic")}
@@ -176,7 +161,6 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                 sortKey="seedingSize"
                 sort={sort}
                 onSort={cycleSort}
-                className="hidden lg:table-cell"
               />
               <SortHeader
                 label={t("metric.bonus")}
@@ -184,13 +168,18 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                 sort={sort}
                 onSort={cycleSort}
               />
-              <SortHeader label={t("table.trend")} className="hidden md:table-cell" />
+              <th scope="col" className="bg-muted/50 px-3 py-2 text-left">
+                <MetricSelector
+                  value={metricKey}
+                  onValueChange={onMetricChange}
+                  className="w-40"
+                />
+              </th>
               <SortHeader
                 label={t("metric.collected")}
                 sortKey="collectedAt"
                 sort={sort}
                 onSort={cycleSort}
-                className="hidden md:table-cell"
               />
             </tr>
           </thead>
@@ -202,22 +191,20 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
               return (
                 <tr
                   key={site.definition}
+                  data-definition={site.definition}
                   className="group/row border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30"
                 >
                   <td className={cn(siteCell, "group-hover/row:bg-muted/30")}>
                     <div className="max-w-36 truncate font-medium">
-                      {site.definition}
-                    </div>
-                    <div className="max-w-36 truncate text-xs text-muted-foreground">
                       {site.prowlarrIndexerName}
+                    </div>
+                    <div className="max-w-36 pt-0.5">
+                      <Badge variant="outline" className={status.className}>
+                        {status.label}
+                      </Badge>
                     </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <Badge variant="outline" className={status.className}>
-                      {status.label}
-                    </Badge>
-                  </td>
-                  <td className="hidden px-3 py-2 whitespace-nowrap lg:table-cell">
                     <div className="max-w-28 truncate">{site.username ?? "–"}</div>
                     <div className="max-w-28 truncate text-xs text-muted-foreground">
                       {site.level ?? "–"}
@@ -253,7 +240,7 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                       )}
                     </div>
                   </td>
-                  <td className="hidden px-3 py-2 text-right whitespace-nowrap tabular-nums lg:table-cell">
+                  <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
                     {fmtBytes(site.seedingSize, locale)}
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -262,14 +249,14 @@ export function SiteList({ sites, histories, metricKey }: SiteListProps) {
                       {fmtNum(site.seedingBonus, locale)}
                     </div>
                   </td>
-                  <td className="hidden px-3 py-2 md:table-cell">
+                  <td className="px-3 py-2">
                     <TrendChart
                       history={histories[site.definition] ?? []}
                       metricKey={metricKey}
                       className="h-14 w-44"
                     />
                   </td>
-                  <td className="hidden px-3 py-2 text-xs whitespace-nowrap text-right text-muted-foreground md:table-cell">
+                  <td className="px-3 py-2 text-xs whitespace-nowrap text-right text-muted-foreground">
                     {fmtTime(site.collectedAt, locale)}
                   </td>
                 </tr>

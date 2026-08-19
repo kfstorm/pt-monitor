@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 export type SortKey =
   | "definition"
   | "username"
-  | "statusName"
   | "uploaded"
   | "ratio"
   | "seedingCount"
@@ -19,7 +18,6 @@ export type SiteSort = {
 const SORT_KEYS: readonly SortKey[] = [
   "definition",
   "username",
-  "statusName",
   "uploaded",
   "ratio",
   "seedingCount",

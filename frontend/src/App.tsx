@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { collectNow, fetchHistory, fetchSites } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MetricSelector } from "@/components/MetricSelector";
 import { SiteList } from "@/components/SiteList";
 import { Summary } from "@/components/Summary";
 import { fmtTime } from "@/lib/format";
@@ -106,7 +105,6 @@ export default function App() {
           >
             <Languages />
           </Button>
-          <MetricSelector value={metric} onValueChange={setMetric} />
           <Button onClick={() => void refresh()} disabled={collecting}>
             {collecting ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             {collecting ? t("action.collecting") : t("action.collectNow")}
@@ -142,7 +140,12 @@ export default function App() {
         </div>
       ) : (
         <div className="mt-6">
-          <SiteList sites={sites} histories={histories} metricKey={metric} />
+          <SiteList
+            sites={sites}
+            histories={histories}
+            metricKey={metric}
+            onMetricChange={setMetric}
+          />
         </div>
       )}
     </main>
