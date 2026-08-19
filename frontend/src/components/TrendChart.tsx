@@ -6,11 +6,13 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/
 import i18n from "@/i18n";
 import { fmtDay } from "@/lib/format";
 import { METRICS, type MetricKey } from "@/lib/metrics";
+import { cn } from "@/lib/utils";
 import type { Site } from "@/types";
 
 interface TrendChartProps {
   history: Site[];
   metricKey: MetricKey;
+  className?: string;
 }
 
 interface ChartPoint {
@@ -52,7 +54,7 @@ export function TrendTooltipContent({
   );
 }
 
-export function TrendChart({ history, metricKey }: TrendChartProps) {
+export function TrendChart({ history, metricKey, className }: TrendChartProps) {
   const { t, i18n } = useTranslation();
   const meta = METRICS[metricKey];
   const locale = i18n.language;
@@ -74,14 +76,19 @@ export function TrendChart({ history, metricKey }: TrendChartProps) {
 
   if (data.filter((point) => point.value != null).length < 2) {
     return (
-      <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex h-40 items-center justify-center text-sm text-muted-foreground",
+          className,
+        )}
+      >
         {t("chart.notEnoughHistory")}
       </div>
     );
   }
 
   return (
-    <ChartContainer config={config} className="aspect-[16/7]">
+    <ChartContainer config={config} className={cn("aspect-[16/7]", className)}>
       <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis

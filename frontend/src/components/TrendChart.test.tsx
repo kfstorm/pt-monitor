@@ -83,4 +83,26 @@ describe("TrendChart", () => {
     );
     expect(container.firstChild).toBeNull();
   });
+
+  it("applies a custom size class to the chart container", () => {
+    const history = [point(1000, 1), point(2000, 2), point(3000, 3)];
+    const { container } = render(
+      <TrendChart history={history} metricKey="bonusPerHour" className="h-14 w-44" />,
+    );
+    const chart = container.querySelector('[data-slot="chart"]');
+    expect(chart?.className).toContain("h-14");
+    expect(chart?.className).toContain("w-44");
+  });
+
+  it("applies a custom size class to the empty state", () => {
+    const { container } = render(
+      <TrendChart
+        history={[point(1, 5)]}
+        metricKey="bonusPerHour"
+        className="h-14 w-44"
+      />,
+    );
+    expect(container.firstElementChild?.className).toContain("h-14");
+    expect(container.firstElementChild?.className).not.toContain("h-40");
+  });
 });

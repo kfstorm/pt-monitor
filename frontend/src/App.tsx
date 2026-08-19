@@ -6,7 +6,7 @@ import { collectNow, fetchHistory, fetchSites } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricSelector } from "@/components/MetricSelector";
-import { SiteCard } from "@/components/SiteCard";
+import { SiteList } from "@/components/SiteList";
 import { Summary } from "@/components/Summary";
 import { fmtTime } from "@/lib/format";
 import { useMetric } from "@/lib/use-metric";
@@ -123,9 +123,17 @@ export default function App() {
       <Summary sites={sites} />
 
       {loading ? (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
+        <div className="mt-6 overflow-hidden rounded-xl border border-border/50 bg-card">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-6 border-b border-border/50 px-3 py-3 last:border-0"
+            >
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="ml-auto h-4 w-28" />
+            </div>
           ))}
         </div>
       ) : sites.length === 0 ? (
@@ -133,15 +141,8 @@ export default function App() {
           {t("empty.noSnapshots")}
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {sites.map((site) => (
-            <SiteCard
-              key={site.definition}
-              site={site}
-              history={histories[site.definition] ?? []}
-              metricKey={metric}
-            />
-          ))}
+        <div className="mt-6">
+          <SiteList sites={sites} histories={histories} metricKey={metric} />
         </div>
       )}
     </main>
