@@ -1,0 +1,108 @@
+import i18n from "i18next";
+import LanguageDetector from "i18next-browser-languagedetector";
+import { initReactI18next } from "react-i18next";
+
+const resources = {
+  en: {
+    translation: {
+      "app.title": "PT Monitor",
+      "app.lastSnapshot": "Last snapshot: {{time}}",
+      "app.noSnapshots": "No snapshots yet",
+      "action.collectNow": "Collect now",
+      "action.collecting": "Collecting...",
+      "action.switchToEnglish": "Switch to English",
+      "action.switchToChinese": "Switch to Chinese",
+      "summary.sites": "Sites",
+      "summary.healthy": "Healthy",
+      "summary.warnings": "Warnings",
+      "summary.failures": "Failures",
+      "metric.ratio": "Ratio",
+      "metric.uploaded": "Uploaded",
+      "metric.downloaded": "Downloaded",
+      "metric.bonus": "Bonus",
+      "metric.bonusPerHour": "Bonus Gained Per Hour",
+      "metric.seedingCount": "Seeding Count",
+      "metric.seedingSize": "Seeding Size",
+      "metric.seedingBonus": "Seed Points",
+      "metric.hnrUnsatisfied": "Unsatisfied H&R Count",
+      "metric.hnrPreWarning": "PreWarning H&R Count",
+      "metric.collected": "Collected",
+      "chart.trendMetric": "Trend metric",
+      "chart.notEnoughHistory": "Not enough history to draw",
+      "status.healthy": "Healthy",
+      "status.skipped": "Skipped",
+      "status.loginFailed": "Login failed",
+      "status.cloudflare": "Cloudflare",
+      "status.unknownError": "Error",
+      "status.waiting": "Waiting",
+      "status.working": "Working",
+      "status.parseError": "Parse error",
+      "status.noResults": "No results",
+      "status.unknown": "Unknown",
+      "empty.noSnapshots":
+        'No snapshots yet. Collection will run automatically, or press "Collect now".',
+      "error.load": "Unable to load data: {{detail}}",
+      "error.collect": "Unable to collect data: {{detail}}",
+    },
+  },
+  zh: {
+    translation: {
+      "app.title": "PT Monitor",
+      "app.lastSnapshot": "上次快照：{{time}}",
+      "app.noSnapshots": "暂无快照",
+      "action.collectNow": "立即采集",
+      "action.collecting": "采集中...",
+      "action.switchToEnglish": "切换到英文",
+      "action.switchToChinese": "切换到中文",
+      "summary.sites": "站点",
+      "summary.healthy": "正常",
+      "summary.warnings": "警告",
+      "summary.failures": "失败",
+      "metric.ratio": "分享率",
+      "metric.uploaded": "上传量",
+      "metric.downloaded": "下载量",
+      "metric.bonus": "积分",
+      "metric.bonusPerHour": "时魔值",
+      "metric.seedingCount": "做种数",
+      "metric.seedingSize": "做种量",
+      "metric.seedingBonus": "做种积分",
+      "metric.hnrUnsatisfied": "H&R 未满足的数量",
+      "metric.hnrPreWarning": "H&R 预警的数量",
+      "metric.collected": "采集时间",
+      "chart.trendMetric": "趋势指标",
+      "chart.notEnoughHistory": "历史数据不足，无法绘制趋势",
+      "status.healthy": "正常",
+      "status.skipped": "已跳过",
+      "status.loginFailed": "登录失败",
+      "status.cloudflare": "Cloudflare 拦截",
+      "status.unknownError": "错误",
+      "status.waiting": "等待中",
+      "status.working": "处理中",
+      "status.parseError": "解析失败",
+      "status.noResults": "无结果",
+      "status.unknown": "未知",
+      "empty.noSnapshots": "暂无快照。系统会自动采集，也可以点击“立即采集”。",
+      "error.load": "加载数据失败：{{detail}}",
+      "error.collect": "采集数据失败：{{detail}}",
+    },
+  },
+} as const;
+
+void i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources,
+    fallbackLng: "en",
+    supportedLngs: ["en", "zh"],
+    load: "languageOnly",
+    detection: {
+      order: ["localStorage", "navigator"],
+      caches: ["localStorage"],
+      lookupLocalStorage: "pt-monitor.language",
+    },
+    interpolation: { escapeValue: false },
+    react: { useSuspense: false },
+  });
+
+export default i18n;

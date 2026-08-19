@@ -1,6 +1,6 @@
 import { fmtBytes, fmtNum, fmtRatio } from "./format";
 
-export type MetricFormatter = (value: number | null) => string;
+export type MetricFormatter = (value: number | null, locale?: string) => string;
 
 export interface MetricDef {
   label: string;
@@ -20,16 +20,19 @@ export type MetricKey =
   | "hnrPreWarning";
 
 export const METRICS: Record<MetricKey, MetricDef> = {
-  bonusPerHour: { label: "Bonus / hour", fmt: fmtNum },
-  bonus: { label: "Bonus", fmt: fmtNum },
-  ratio: { label: "Ratio", fmt: (value) => fmtRatio(value) },
-  uploaded: { label: "Uploaded", fmt: fmtBytes },
-  downloaded: { label: "Downloaded", fmt: fmtBytes },
-  seedingCount: { label: "Seeding", fmt: fmtNum },
-  seedingSize: { label: "Seeding size", fmt: fmtBytes },
-  seedingBonus: { label: "Seeding bonus", fmt: fmtNum },
-  hnrUnsatisfied: { label: "H&R", fmt: fmtNum },
-  hnrPreWarning: { label: "H&R warning", fmt: fmtNum },
+  bonusPerHour: { label: "metric.bonusPerHour", fmt: fmtNum },
+  bonus: { label: "metric.bonus", fmt: fmtNum },
+  ratio: {
+    label: "metric.ratio",
+    fmt: (value, locale) => fmtRatio(value, null, null, locale),
+  },
+  uploaded: { label: "metric.uploaded", fmt: fmtBytes },
+  downloaded: { label: "metric.downloaded", fmt: fmtBytes },
+  seedingCount: { label: "metric.seedingCount", fmt: fmtNum },
+  seedingSize: { label: "metric.seedingSize", fmt: fmtBytes },
+  seedingBonus: { label: "metric.seedingBonus", fmt: fmtNum },
+  hnrUnsatisfied: { label: "metric.hnrUnsatisfied", fmt: fmtNum },
+  hnrPreWarning: { label: "metric.hnrPreWarning", fmt: fmtNum },
 };
 
 export const METRIC_KEYS = Object.keys(METRICS) as MetricKey[];
