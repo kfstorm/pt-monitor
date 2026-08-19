@@ -1,9 +1,23 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PT Monitor</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("pt-monitor.theme");
+          const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const dark =
+            stored === "dark" ||
+            (stored !== "light" && stored !== "dark" && systemDark);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch {
+          // ignore storage errors; default to the system scheme
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

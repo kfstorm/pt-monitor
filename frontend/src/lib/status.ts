@@ -13,12 +13,14 @@ export function statusInfo(
     case "success":
       return {
         label: translate("status.healthy"),
-        className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+        className:
+          "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
       };
     case "passParse":
       return {
         label: translate("status.skipped"),
-        className: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+        className:
+          "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
       };
     case "needLogin":
       return { label: translate("status.loginFailed"), className: BAD };

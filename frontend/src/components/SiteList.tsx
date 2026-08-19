@@ -213,7 +213,7 @@ export function SiteList({
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 tabular-nums">
                       {fmtBytes(site.uploaded, locale)}
-                      <ArrowUp className="size-3 shrink-0 text-emerald-500" />
+                      <ArrowUp className="size-3 shrink-0 text-emerald-600 dark:text-emerald-500" />
                     </div>
                     <div className="flex items-center justify-end gap-1 text-muted-foreground tabular-nums">
                       {fmtBytes(site.downloaded, locale)}
@@ -229,7 +229,7 @@ export function SiteList({
                       {hasPreWarning && (
                         <AlertTriangle
                           data-hnr="warning"
-                          className="size-3 shrink-0 text-amber-500"
+                          className="size-3 shrink-0 text-amber-600 dark:text-amber-500"
                         />
                       )}
                       {hasUnsatisfied && (
