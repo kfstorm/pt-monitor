@@ -59,6 +59,17 @@ describe("TrendChart", () => {
     expect(chart!.querySelector("svg")).not.toBeNull();
   });
 
+  it("renders a sparkline without cartesian axes", () => {
+    const history = [point(1000, 1), point(2000, 2), point(3000, 3)];
+    render(<TrendChart history={history} metricKey="bonusPerHour" />);
+
+    const chart = document.querySelector('[data-slot="chart"]');
+    expect(chart!.querySelector(".recharts-xAxis")).toBeNull();
+    expect(chart!.querySelector(".recharts-yAxis")).toBeNull();
+    expect(chart!.querySelector(".recharts-cartesian-grid")).toBeNull();
+    expect(chart!.querySelector(".recharts-line-dots circle")).not.toBeNull();
+  });
+
   it("renders a formatted tooltip title and value", () => {
     render(
       <TrendTooltipContent
@@ -87,11 +98,11 @@ describe("TrendChart", () => {
   it("applies a custom size class to the chart container", () => {
     const history = [point(1000, 1), point(2000, 2), point(3000, 3)];
     const { container } = render(
-      <TrendChart history={history} metricKey="bonusPerHour" className="h-14 w-44" />,
+      <TrendChart history={history} metricKey="bonusPerHour" className="h-16 w-52" />,
     );
     const chart = container.querySelector('[data-slot="chart"]');
-    expect(chart?.className).toContain("h-14");
-    expect(chart?.className).toContain("w-44");
+    expect(chart?.className).toContain("h-16");
+    expect(chart?.className).toContain("w-52");
   });
 
   it("applies a custom size class to the empty state", () => {
@@ -99,10 +110,11 @@ describe("TrendChart", () => {
       <TrendChart
         history={[point(1, 5)]}
         metricKey="bonusPerHour"
-        className="h-14 w-44"
+        className="h-16 w-52"
       />,
     );
-    expect(container.firstElementChild?.className).toContain("h-14");
+    expect(container.firstElementChild?.className).toContain("h-16");
+    expect(container.firstElementChild?.className).toContain("w-52");
     expect(container.firstElementChild?.className).not.toContain("h-40");
   });
 });

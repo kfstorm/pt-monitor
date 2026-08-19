@@ -172,7 +172,7 @@ export function SiteList({
                 <MetricSelector
                   value={metricKey}
                   onValueChange={onMetricChange}
-                  className="w-40"
+                  className="w-52"
                 />
               </th>
               <SortHeader
@@ -253,7 +253,7 @@ export function SiteList({
                     <TrendChart
                       history={histories[site.definition] ?? []}
                       metricKey={metricKey}
-                      className="h-14 w-44"
+                      className="h-16 w-52"
                     />
                   </td>
                   <td className="px-3 py-2 text-xs whitespace-nowrap text-right text-muted-foreground">
