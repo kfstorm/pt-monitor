@@ -123,6 +123,25 @@ pnpm ui:build                  # 构建前端到 frontend/dist（本地运行前
 pnpm ui:dev                    # Vite dev server，/api 代理到 127.0.0.1:9709
 ```
 
+### 前端开发用 mock 数据
+
+不启动真实后端（`pnpm cli serve`）也能开发前端：mock 服务器模拟后端的 `/api` 接口，返回确定性的假数据（每站按固定种子生成随机游走，累计量带偶发峰值和抖动，趋势迷你图像真实采集数据且可复现）。
+
+```bash
+pnpm mock:server   # 监听 127.0.0.1:9709，替代真实后端
+pnpm ui:dev        # Vite dev server，/api 代理到 127.0.0.1:9709
+```
+
+打开 <http://127.0.0.1:5173> 即可。用 `PORT` / `HOST` 环境变量可改监听地址。
+
+更新 README 顶部的 `docs/screenshot.webp`（启动 mock 与 dev server 后，用浏览器打开界面截图，再转成 WebP）：
+
+```bash
+agent-browser open http://127.0.0.1:5173
+agent-browser screenshot shot.png
+convert shot.png -quality 82 docs/screenshot.webp
+```
+
 `pre-commit run --all-files` 会跑上述全部检查；PR 的 CI 执行同一套，另外构建多架构 Docker 镜像。先 `pre-commit install` 让每次 `git commit` 自动对暂存文件执行这些检查。
 
 - `vendor/PT-depiler` 由 `pnpm bootstrap` 按固定 commit 拉取并应用 Node 兼容 overlay，vendor 更新后重新运行 bootstrap。

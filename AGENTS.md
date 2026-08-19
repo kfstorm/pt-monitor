@@ -15,6 +15,7 @@ Node.js 24 + TypeScript 项目：从 Prowlarr 读取 indexer 认证信息，调�
 - `pnpm cli doctor --db /path/to/prowlarr.db`: 检查 Prowlarr DB、vendor 和运行环境。
 - `pnpm cli list --db /path/to/prowlarr.db --all`: 查看 indexer 名称、definition、Cookie 名称和过期时间，不输出 Cookie 值。
 - `pnpm cli fetch DEFINITION --db /path/to/prowlarr.db --debug`: 单站调试采集。
+- `pnpm mock:server`: 启动前端开发用 mock API（`scripts/mock-api.mjs`，默认 127.0.0.1:9709），替代真实后端；配合 `pnpm ui:dev` 即可开发/截图前端。前端相关验证优先用它，不要再在 `/tmp` 临时生成 mock 数据。
 
 ## Runtime Inputs
 
