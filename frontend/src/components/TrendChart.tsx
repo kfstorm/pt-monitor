@@ -1,16 +1,18 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Line, LineChart } from "recharts";
 
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import i18n from "@/i18n";
 import { fmtDay } from "@/lib/format";
 import { METRICS, type MetricKey } from "@/lib/metrics";
+import { cn } from "@/lib/utils";
 import type { Site } from "@/types";
 
 interface TrendChartProps {
   history: Site[];
   metricKey: MetricKey;
+  className?: string;
 }
 
 interface ChartPoint {
@@ -52,7 +54,7 @@ export function TrendTooltipContent({
   );
 }
 
-export function TrendChart({ history, metricKey }: TrendChartProps) {
+export function TrendChart({ history, metricKey, className }: TrendChartProps) {
   const { t, i18n } = useTranslation();
   const meta = METRICS[metricKey];
   const locale = i18n.language;
@@ -74,33 +76,22 @@ export function TrendChart({ history, metricKey }: TrendChartProps) {
 
   if (data.filter((point) => point.value != null).length < 2) {
     return (
-      <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex h-40 items-center justify-center text-sm text-muted-foreground",
+          className,
+        )}
+      >
         {t("chart.notEnoughHistory")}
       </div>
     );
   }
 
+  const lastPlottable = [...data].reverse().find((point) => point.value != null);
+
   return (
-    <ChartContainer config={config} className="aspect-[16/7]">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-        <XAxis
-          dataKey="collectedAt"
-          type="number"
-          scale="time"
-          domain={["dataMin", "dataMax"]}
-          tickFormatter={(value: number) => fmtDay(value, locale)}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
-        <YAxis
-          tickFormatter={(value: number) => meta.fmt(value, locale)}
-          width={64}
-          tickLine={false}
-          axisLine={false}
-          domain={["auto", "auto"]}
-        />
+    <ChartContainer config={config} className={className}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
         <ChartTooltip
           content={({ active, payload }) => (
             <TrendTooltipContent
@@ -116,10 +107,31 @@ export function TrendChart({ history, metricKey }: TrendChartProps) {
           dataKey="value"
           type="monotone"
           stroke="var(--chart-1)"
-          strokeWidth={1.6}
-          dot={false}
+          strokeWidth={2}
           connectNulls={false}
           isAnimationActive={false}
+          dot={(props) => {
+            const point = props.payload as ChartPoint | undefined;
+            if (
+              point == null ||
+              lastPlottable == null ||
+              point.collectedAt !== lastPlottable.collectedAt ||
+              props.cx == null ||
+              props.cy == null
+            ) {
+              return null;
+            }
+            return (
+              <circle
+                cx={props.cx}
+                cy={props.cy}
+                r={2.5}
+                fill="var(--chart-1)"
+                stroke="var(--background)"
+                strokeWidth={1.5}
+              />
+            );
+          }}
         />
       </LineChart>
     </ChartContainer>

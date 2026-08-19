@@ -25,12 +25,12 @@ export function Summary({ sites }: SummaryProps) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-xl border border-border/50 bg-card px-4 py-3"
+          className="rounded-xl border border-border/50 bg-card px-3 py-2.5"
         >
-          <div className="text-2xl font-semibold tabular-nums">
+          <div className="text-lg font-semibold tabular-nums">
             {fmtNum(card.value, i18n.language)}
           </div>
-          <div className="text-xs text-muted-foreground">{card.label}</div>
+          <div className="text-[11px] text-muted-foreground">{card.label}</div>
         </div>
       ))}
     </div>

@@ -12,6 +12,7 @@
     "cli": "tsx src/cli.ts",
     "test": "tsx --test tests/*.test.ts && pnpm --filter pt-monitor-ui test",
     "serve": "tsx src/cli.ts serve",
+    "mock:server": "node scripts/mock-api.mjs",
     "ui:dev": "pnpm --filter pt-monitor-ui dev",
     "ui:build": "pnpm --filter pt-monitor-ui build",
     "ui:lint": "pnpm --filter pt-monitor-ui lint",
