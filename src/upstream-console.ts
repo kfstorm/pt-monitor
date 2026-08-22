@@ -1,14 +1,15 @@
 import { formatWithOptions } from "node:util";
 
 const sensitiveKey = /cookie|password|passkey|token|api[-_]?key|secret|authorization/i;
+const credentialNamePattern = String.raw`(?:api[-_]?key|[a-z0-9_-]*(?:token|secret|password|passkey|cookie|authorization)[a-z0-9_-]*)`;
 
 export function sanitizeErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message
-    .replace(/([?&](?:api[_-]?key|(?:[a-z]+[_-]?)?token|(?:[a-z]+[_-]?)?secret|passkey|password|cookie|authorization)=)[^&\s]*/gi, "$1[redacted]")
+    .replace(new RegExp(String.raw`([?&]${credentialNamePattern}=)[^&\s]*`, "gi"), "$1[redacted]")
     .replace(/\b(?:cookie|set-cookie)\s*[:=]\s*[^\r\n]*/gi, "cookie=[redacted]")
-    .replace(/(["'](?:cookie|password|api[_-]?key|(?:[a-z]+[_-]?)?token|(?:[a-z]+[_-]?)?secret|passkey|authorization)["']\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
-    .replace(/\b(cookie|password|api[_-]?key|(?:[a-z]+[_-]?)?token|(?:[a-z]+[_-]?)?secret|passkey|authorization)\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1=[redacted]")
+    .replace(new RegExp(String.raw`(["']${credentialNamePattern}["']\s*:\s*)"[^"]*"`, "gi"), '$1"[redacted]"')
+    .replace(new RegExp(String.raw`\b(${credentialNamePattern})\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)`, "gi"), "$1=[redacted]")
     .replace(/(https?:\/\/[^/\s:@]+:)[^@\s]+@/gi, "$1[redacted]@");
 }
 
