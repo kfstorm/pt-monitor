@@ -242,9 +242,10 @@ export async function collectSite(options: CollectOptions): Promise<CollectResul
       log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
     });
     const matchingTargets = targets.filter((target) => target.definition === options.definition);
-    credentials = matchingTargets.length === 1
-      ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
-      : findProwlarrIndexer(db, options.definition);
+    if (matchingTargets.length !== 1) {
+      throw new Error(`Prowlarr indexer binding for ${options.definition} is not unique`);
+    }
+    credentials = db.getIndexer(matchingTargets[0].prowlarrIndexerId);
   }
   const metadata = await loadSiteMetadata(options.definition);
   const inputSetting = mapInputSettings(metadata, credentials.settings, credentials.cookies);

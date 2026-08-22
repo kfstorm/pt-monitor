@@ -124,6 +124,14 @@ export async function serve(options: ServeOptions): Promise<void> {
       }
       const results: Array<Record<string, unknown>> = [];
       for (const target of discovery.targets) {
+        if (target.prowlarrIndexerId < 0) {
+          results.push({
+            definition: target.definition,
+            ok: false,
+            error: "Prowlarr indexer binding is not unique",
+          });
+          continue;
+        }
         try {
           const collected = await collectSite({
             prowlarrDb: options.prowlarrDb,
@@ -298,18 +306,18 @@ async function resolveExplicitTargets(definitions: string[], options: ServeOptio
       const matches = discovered.targets.filter((target) => target.definition === definition);
       return matches.length === 1 ? matches[0] : {
         definition,
-        prowlarrIndexerId: 0,
+        prowlarrIndexerId: -1,
         prowlarrIndexerName: "",
-        matchReason: "explicit configuration",
+        matchReason: "explicit configuration could not be uniquely bound",
       };
     });
   } catch (error) {
     if (options.debug) process.stderr.write(`[pt-monitor] explicit indexer lookup failed: ${discoveryDetail(error)}\n`);
     return definitions.map((definition) => ({
       definition,
-      prowlarrIndexerId: 0,
+      prowlarrIndexerId: -1,
       prowlarrIndexerName: "",
-      matchReason: "explicit configuration",
+      matchReason: "explicit configuration could not be bound",
     }));
   }
 }
