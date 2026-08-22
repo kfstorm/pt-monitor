@@ -1,4 +1,4 @@
-import type { Site } from "@/types";
+import type { Site, SitesResponse } from "@/types";
 
 function toNumber(value: unknown): number | null {
   const n =
@@ -35,8 +35,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function fetchSites(): Promise<Site[]> {
-  return request<Site[]>("/api/sites").then((sites) => sites.map(parseSite));
+export function fetchSites(): Promise<SitesResponse> {
+  return request<SitesResponse>("/api/sites").then((payload) => ({
+    ...payload,
+    sites: payload.sites.map(parseSite),
+  }));
 }
 
 export function fetchHistory(definition: string): Promise<Site[]> {

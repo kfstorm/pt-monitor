@@ -10,7 +10,7 @@
 //   PORT=9800 node scripts/mock-api.mjs
 //
 // Endpoints mirror the real backend:
-//   GET  /api/sites                     -> current snapshots for every site
+//   GET  /api/sites                     -> current snapshots and discovery diagnostics
 //   GET  /api/sites/<definition>/history?hours=N
 //   POST /api/collect                   -> triggers a fake collect (returns {})
 //
@@ -35,6 +35,14 @@ const SITES = [
   { definition: "opencd", name: "OpenCD", status: "passParse", user: "kfstorm", level: "Ordinary", hnrUnsatisfied: 0, hnrPreWarning: 3 },
   { definition: "keepfrds", name: "KeepFrds", status: "success", user: "kfstorm", level: "Regular", hnrUnsatisfied: 0, hnrPreWarning: 0 },
   { definition: "dicmusic", name: "DICMusic", status: "parseError", user: null, level: null, hnrUnsatisfied: 0, hnrPreWarning: 0 },
+];
+
+const SKIPPED = [
+  {
+    prowlarrIndexerId: 42,
+    prowlarrIndexerName: "Unmapped Site",
+    reason: "no-match",
+  },
 ];
 
 // Small deterministic PRNG (mulberry32) so every run draws the same shapes.
@@ -140,12 +148,17 @@ const server = createServer((req, res) => {
   if (req.method === "GET" && url.pathname === "/api/sites") {
     const now = Date.now();
     res.end(
-      JSON.stringify(
-        SITES.map((site) => {
+      JSON.stringify({
+        sites: SITES.map((site) => {
           const points = series(site);
           return snapshot(site, points[points.length - 1], now);
         }),
-      ),
+        skipped: SKIPPED,
+        discovery: {
+          status: "ready",
+          updatedAt: new Date(now).toISOString(),
+        },
+      }),
     );
     return;
   }

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { discoverSiteTargets } from "../src/collector.ts";
+import { discoverSiteResult, discoverSiteTargets } from "../src/collector.ts";
 import { mapInputSettings } from "../src/ptdepiler.ts";
 
 function createProwlarrFixture(): string {
@@ -45,6 +45,7 @@ test("discovers normalized and custom Prowlarr indexers without site-specific ma
   try {
     const logs: string[] = [];
     const targets = await discoverSiteTargets(join(dir, "prowlarr.db"), { log: (message) => logs.push(message) });
+    const result = await discoverSiteResult(join(dir, "prowlarr.db"));
 
     assert.deepEqual(
       targets.map(({ definition, prowlarrIndexerId }) => ({ definition, prowlarrIndexerId })),
@@ -57,6 +58,13 @@ test("discovers normalized and custom Prowlarr indexers without site-specific ma
     assert.equal(logs.filter((message) => message.includes("matched indexer")).length, 3);
     assert.equal(logs.filter((message) => message.includes("skip indexer 99:Unmapped Site")).length, 1);
     assert.ok(logs.every((message) => !message.includes("test-api-key")));
+    assert.deepEqual(result.skipped, [
+      {
+        prowlarrIndexerId: 99,
+        prowlarrIndexerName: "Unmapped Site",
+        reason: "no-match",
+      },
+    ]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
