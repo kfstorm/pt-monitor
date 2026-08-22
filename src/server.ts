@@ -330,8 +330,9 @@ async function runDiscovery(options: ServeOptions): Promise<DiscoveryResult> {
 }
 
 function discoveryDetail(error: unknown): string {
-  if (error instanceof Error && error.message && !/(cookie|password|apikey|token|passkey|authorization)/i.test(error.message)) {
-    return error.message;
+  const detail = sanitizeErrorMessage(error);
+  if (detail && !/(cookie|password|apikey|token|passkey|authorization|secret)/i.test(detail)) {
+    return detail;
   }
   return "Unable to inspect Prowlarr indexers or PT-depiler metadata.";
 }

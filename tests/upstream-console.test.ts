@@ -31,8 +31,8 @@ test("redacts credential values from upstream debug output", async () => {
 
 test("redacts credential values embedded in diagnostic strings", () => {
   const rendered = sanitizeErrorMessage(
-    "Request failed: Cookie: session=string-secret; cf_clearance=string-secret-2 Authorization: Bearer string-token",
+    "Request failed: Cookie: session=string-secret; cf_clearance=string-secret-2 Authorization: Bearer string-token accessToken=access-secret client_secret=client-secret",
   );
-  assert.doesNotMatch(rendered, /string-secret|string-token/);
+  assert.doesNotMatch(rendered, /string-secret|string-token|access-secret|client-secret/);
   assert.match(rendered, /\[redacted\]/);
 });
