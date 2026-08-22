@@ -216,13 +216,12 @@ export async function route(
   if (req.method === "GET" && url.pathname === "/api/sites") {
     const state = getDiscovery();
     const sites = new Map<string, StoredSnapshot>();
-    for (const target of state.targets) {
+    for (const definition of new Set(state.targets.map((target) => target.definition))) {
+      const target = activeTarget(state, definition);
+      if (!target) continue;
       const site = store.latestFor(target.definition, target.prowlarrIndexerId || undefined);
       if (!site) continue;
-      const existing = sites.get(site.definition);
-      if (!existing || site.collectedAt > existing.collectedAt || site.id > existing.id) {
-        sites.set(site.definition, site);
-      }
+      sites.set(site.definition, site);
     }
     writeJson(res, 200, {
       sites: [...sites.values()]
@@ -239,7 +238,12 @@ export async function route(
     const hoursRaw = Number(url.searchParams.get("hours") ?? 168);
     const hours = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.min(hoursRaw, 24 * 365) : 168;
     const since = Date.now() - hours * 3600_000;
-    const target = getDiscovery().targets.find((item) => item.definition === definition);
+    const targets = getDiscovery().targets.filter((item) => item.definition === definition);
+    if (targets.length > 1) {
+      writeJson(res, 200, []);
+      return;
+    }
+    const target = targets[0];
     writeJson(
       res,
       200,
@@ -323,10 +327,16 @@ function discoveryDetail(error: unknown): string {
   return "Unable to inspect Prowlarr indexers or PT-depiler metadata.";
 }
 
+function activeTarget(state: DiscoveryState, definition: string): SiteTarget | null {
+  const targets = state.targets.filter((target) => target.definition === definition);
+  return targets.length === 1 ? targets[0] : null;
+}
+
 function safeErrorDetail(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message
     .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=)[^&\s]*/gi, "$1[redacted]")
+    .replace(/\b(?:cookie|set-cookie)\s*[:=]\s*[^\r\n]*/gi, "cookie=[redacted]")
     .replace(/(["'](?:cookie|password|api[_-]?key|token|passkey|authorization)["']\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
     .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1=[redacted]")
     .replace(/(https?:\/\/[^/\s:@]+:)[^@\s]+@/gi, "$1[redacted]@");
