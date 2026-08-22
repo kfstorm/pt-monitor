@@ -6,7 +6,9 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
+  collectSite,
   discoveryOptions,
+  discoverSiteResult,
   discoverSiteTargets,
   findIndexerForDefinition,
 } from "../src/collector.ts";
@@ -43,6 +45,8 @@ function createProwlarrFixture(): string {
   insert.run(99, "Unmapped Site", "CustomImplementation", "CustomSettings", 1, JSON.stringify({ baseUrl: "https://unmapped.example/" }));
   insert.run(100, "Manual Site", "CustomImplementation", "CustomSettings", 1, JSON.stringify({ definitionFile: "manual-definition" }));
   insert.run(101, "OpenCD", "CustomImplementation", "CustomSettings", 1, JSON.stringify({ definitionFile: "opencd" }));
+  insert.run(102, "SC", "CustomImplementation", "CustomSettings", 1, JSON.stringify({}));
+  insert.run(103, "Old Lemon", "CustomImplementation", "CustomSettings", 1, JSON.stringify({ definitionFile: "lemonhdorg" }));
   db.close();
   return dir;
 }
@@ -52,6 +56,7 @@ test("discovers normalized and custom Prowlarr indexers without site-specific ma
   try {
     const logs: string[] = [];
     const targets = await discoverSiteTargets(join(dir, "prowlarr.db"), { log: (message) => logs.push(message) });
+    const result = await discoverSiteResult(join(dir, "prowlarr.db"));
 
     assert.deepEqual(
       targets.map(({ definition, prowlarrIndexerId }) => ({ definition, prowlarrIndexerId })),
@@ -64,6 +69,20 @@ test("discovers normalized and custom Prowlarr indexers without site-specific ma
     assert.equal(logs.filter((message) => message.includes("matched indexer")).length, 3);
     assert.equal(logs.filter((message) => message.includes("skip indexer 99:Unmapped Site")).length, 1);
     assert.ok(logs.every((message) => !message.includes("test-api-key")));
+    assert.deepEqual(
+      result.skipped.map(({ prowlarrIndexerId, prowlarrIndexerName, reason, candidates }) => ({
+        prowlarrIndexerId,
+        prowlarrIndexerName,
+        reason,
+        candidates,
+      })),
+      [
+        { prowlarrIndexerId: 100, prowlarrIndexerName: "Manual Site", reason: "no-match", candidates: undefined },
+        { prowlarrIndexerId: 103, prowlarrIndexerName: "Old Lemon", reason: "dead", candidates: undefined },
+        { prowlarrIndexerId: 102, prowlarrIndexerName: "SC", reason: "ambiguous", candidates: ["secretcinema", "sportscult"] },
+        { prowlarrIndexerId: 99, prowlarrIndexerName: "Unmapped Site", reason: "no-match", candidates: undefined },
+      ],
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -95,6 +114,21 @@ test("falls back to the configured definition when discovery has no match", asyn
     const indexer = await findIndexerForDefinition(join(dir, "prowlarr.db"), "manual-definition");
     assert.equal(indexer.id, 100);
     assert.equal(indexer.name, "Manual Site");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectSite keeps the fallback for definitions excluded by discovery", async () => {
+  const dir = createProwlarrFixture();
+  try {
+    await assert.rejects(
+      () => collectSite({
+        prowlarrDb: join(dir, "prowlarr.db"),
+        definition: "manual-definition",
+      }),
+      /Missing vendored PT-depiler file/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -156,7 +190,7 @@ test("keeps the configured fallback when discovery returns multiple targets", as
     db.prepare(
       "INSERT INTO Indexers(Id, Name, Implementation, ConfigContract, Enable, Settings) VALUES (?, ?, ?, ?, ?, ?)",
     ).run(
-      102,
+      104,
       "M-Team Alias",
       "CustomImplementation",
       "CustomSettings",
@@ -166,7 +200,7 @@ test("keeps the configured fallback when discovery returns multiple targets", as
     db.close();
 
     const indexer = await findIndexerForDefinition(join(dir, "prowlarr.db"), "mteam");
-    assert.equal(indexer.id, 102);
+    assert.equal(indexer.id, 104);
     assert.equal(indexer.name, "M-Team Alias");
   } finally {
     rmSync(dir, { recursive: true, force: true });

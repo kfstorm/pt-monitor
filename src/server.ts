@@ -2,16 +2,11 @@ import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, resolve } from "node:path";
 
-import {
-  collectSite,
-  discoverSiteTargets,
-  findIndexerForDefinition,
-  type SiteTarget,
-} from "./collector.ts";
+import { collectSite, discoverSiteResult, findIndexerForDefinition, type SkippedSite } from "./collector.ts";
+import { SnapshotStore } from "./store.ts";
 import { loadSiteMetadata, SiteMetadataResolutionError } from "./ptdepiler.ts";
 import { ProwlarrIndexerResolutionError } from "./prowlarr.ts";
 import { resolveSiteUrl } from "./site-url.ts";
-import { SnapshotStore } from "./store.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
 
@@ -51,14 +46,22 @@ export interface ServeOptions {
 
 export async function serve(options: ServeOptions): Promise<void> {
   const store = new SnapshotStore(options.stateDb);
-  const targets: SiteTarget[] = options.sites?.length
-    ? options.sites.map((definition) => ({
-        definition,
-        prowlarrIndexerId: 0,
-        prowlarrIndexerName: "",
-        matchReason: "explicit configuration",
-      }))
-    : await discoverSiteTargets(options.prowlarrDb);
+  const discovery = options.sites?.length
+    ? {
+        targets: options.sites.map((definition) => ({
+          definition,
+          prowlarrIndexerId: 0,
+          prowlarrIndexerName: "",
+          matchReason: "explicit configuration",
+        })),
+        skipped: [] as SkippedSite[],
+      }
+    : await discoverSiteResult(options.prowlarrDb, {
+        log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
+      });
+  const targets = discovery.targets;
+  const skipped = discovery.skipped;
+
   if (targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
   }
@@ -82,10 +85,7 @@ export async function serve(options: ServeOptions): Promise<void> {
           if (url) siteUrls.set(key, url);
           else siteUrls.delete(key);
         } catch (error) {
-          if (
-            error instanceof ProwlarrIndexerResolutionError ||
-            error instanceof SiteMetadataResolutionError
-          ) {
+          if (error instanceof ProwlarrIndexerResolutionError || error instanceof SiteMetadataResolutionError) {
             clearSiteUrls(siteUrls, target.definition);
           }
           // Keep the last valid URL when a refresh fails transiently.
@@ -146,6 +146,7 @@ export async function serve(options: ServeOptions): Promise<void> {
         targets.map((target) => target.definition),
         collectAll,
         siteUrls,
+        skipped,
       );
     } catch (error) {
       writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -176,13 +177,14 @@ export async function serve(options: ServeOptions): Promise<void> {
   process.once("SIGTERM", shutdown);
 }
 
-async function route(
+export async function route(
   req: IncomingMessage,
   res: ServerResponse,
   store: SnapshotStore,
   definitions: string[],
   collectAll: () => Promise<Array<Record<string, unknown>>>,
   siteUrls: ReadonlyMap<string, string>,
+  skipped: SkippedSite[] = [],
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
@@ -194,14 +196,14 @@ async function route(
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/sites") {
-    writeJson(
-      res,
-      200,
-      store.latest().map(({ raw: _raw, ...item }) => {
-        const siteUrl = siteUrls.get(siteUrlKey(item.definition, item.prowlarrIndexerId));
-        return siteUrl ? { ...item, siteUrl } : item;
-      }),
-    );
+    writeJson(res, 200, {
+      sites: store.latest()
+        .map(({ raw: _raw, ...item }) => {
+          const siteUrl = siteUrls.get(siteUrlKey(item.definition, item.prowlarrIndexerId));
+          return siteUrl ? { ...item, siteUrl } : item;
+        }),
+      skipped,
+    });
     return;
   }
   const historyMatch = url.pathname.match(/^\/api\/sites\/([^/]+)\/history$/);
@@ -213,7 +215,8 @@ async function route(
     writeJson(
       res,
       200,
-      store.history(definition, since).map(({ raw: _raw, ...item }) => item),
+      store.history(definition, since)
+        .map(({ raw: _raw, ...item }) => item),
     );
     return;
   }

@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import { collectNow, fetchHistory, fetchSites } from "@/api";
 import { Button } from "@/components/ui/button";
+import { DiscoveryDiagnostics } from "@/components/DiscoveryDiagnostics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteList } from "@/components/SiteList";
 import { Summary } from "@/components/Summary";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fmtTime } from "@/lib/format";
 import { useMetric } from "@/lib/use-metric";
-import type { Site } from "@/types";
+import type { Site, SkippedSite } from "@/types";
 
 type AppError = {
   key: "error.load" | "error.collect";
@@ -20,6 +21,7 @@ type AppError = {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [sites, setSites] = useState<Site[]>([]);
+  const [skipped, setSkipped] = useState<SkippedSite[]>([]);
   const [histories, setHistories] = useState<Record<string, Site[]>>({});
   const [loading, setLoading] = useState(true);
   const [collecting, setCollecting] = useState(false);
@@ -28,10 +30,11 @@ export default function App() {
 
   const load = useCallback(async () => {
     try {
-      const nextSites = await fetchSites();
-      setSites(nextSites);
+      const payload = await fetchSites();
+      setSites(payload.sites);
+      setSkipped(payload.skipped);
       const entries = await Promise.all(
-        nextSites.map(
+        payload.sites.map(
           async (site) =>
             [site.definition, await fetchHistory(site.definition)] as const,
         ),
@@ -150,6 +153,8 @@ export default function App() {
           />
         </div>
       )}
+
+      <DiscoveryDiagnostics skipped={skipped} />
     </main>
   );
 }

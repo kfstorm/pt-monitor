@@ -48,6 +48,20 @@ export interface SiteTarget {
   matchReason: string;
 }
 
+export type SkippedSiteReason = "no-match" | "ambiguous" | "dead";
+
+export interface SkippedSite {
+  prowlarrIndexerId: number;
+  prowlarrIndexerName: string;
+  reason: SkippedSiteReason;
+  candidates?: string[];
+}
+
+export interface DiscoveryResult {
+  targets: SiteTarget[];
+  skipped: SkippedSite[];
+}
+
 export interface DiscoveryOptions {
   log?: (message: string) => void;
 }
@@ -176,20 +190,26 @@ function discoveryLog(message: string, options: DiscoveryOptions): void {
   (options.log ?? ((line: string) => process.stderr.write(`${line}\n`)))(`[pt-monitor] ${message}`);
 }
 
-export async function discoverSiteTargets(prowlarrDb: string, options: DiscoveryOptions = {}): Promise<SiteTarget[]> {
+export async function discoverSiteResult(prowlarrDb: string, options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
   ensureDom();
   const db = new ProwlarrDB(prowlarrDb);
   const records = await listSiteMetadata();
   const targets: SiteTarget[] = [];
+  const skipped: SkippedSite[] = [];
   const candidates = db.listIndexers().filter((item) => item.enabled && item.privacy !== "public");
 
   for (const indexer of candidates) {
     const matches = matchMetadata(indexer, records).sort((a, b) => b.score - a.score || a.definition.localeCompare(b.definition));
     const liveMatches = matches.filter((match) => !match.dead);
     if (liveMatches.length === 0) {
-      const reason = matches.length > 0 ? `candidates are marked dead: ${matches.map((match) => match.definition).join(", ")}` : "no PT-depiler metadata matched";
+      const reason: SkippedSiteReason = matches.length > 0 ? "dead" : "no-match";
+      skipped.push({
+        prowlarrIndexerId: indexer.id,
+        prowlarrIndexerName: indexer.name,
+        reason,
+      });
       discoveryLog(
-        `skip indexer ${indexer.id}:${indexer.name}: ${reason} (implementation=${indexer.implementation || "unknown"}, definitionFile=${indexer.definitionFile ?? "none"})`,
+        `skip indexer ${indexer.id}:${indexer.name}: ${reason === "dead" ? `candidates are marked dead: ${matches.map((match) => match.definition).join(", ")}` : "no PT-depiler metadata matched"} (implementation=${indexer.implementation || "unknown"}, definitionFile=${indexer.definitionFile ?? "none"})`,
         options,
       );
       continue;
@@ -198,6 +218,12 @@ export async function discoverSiteTargets(prowlarrDb: string, options: Discovery
     const best = liveMatches[0];
     const tied = liveMatches.filter((match) => match.score === best.score);
     if (tied.length > 1) {
+      skipped.push({
+        prowlarrIndexerId: indexer.id,
+        prowlarrIndexerName: indexer.name,
+        reason: "ambiguous",
+        candidates: tied.map((match) => match.definition),
+      });
       discoveryLog(
         `skip indexer ${indexer.id}:${indexer.name}: ambiguous PT-depiler candidates ${tied.map((match) => match.definition).join(", ")} (score=${best.score})`,
         options,
@@ -217,7 +243,11 @@ export async function discoverSiteTargets(prowlarrDb: string, options: Discovery
     );
   }
 
-  return targets;
+  return { targets, skipped };
+}
+
+export async function discoverSiteTargets(prowlarrDb: string, options: DiscoveryOptions = {}): Promise<SiteTarget[]> {
+  return (await discoverSiteResult(prowlarrDb, options)).targets;
 }
 
 export async function collectSite(options: CollectOptions): Promise<CollectResult> {
