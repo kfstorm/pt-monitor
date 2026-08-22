@@ -30,6 +30,7 @@ export interface CollectOptions {
   flaresolverrUrl?: string;
   flaresolverrTimeoutMs?: number;
   debug?: boolean;
+  autoDiscoverIndexer?: boolean;
 }
 
 export interface CollectResult {
@@ -234,6 +235,8 @@ export async function collectSite(options: CollectOptions): Promise<CollectResul
   let credentials: IndexerCredentials;
   if (options.indexer !== undefined) {
     credentials = findProwlarrIndexer(db, options.definition, options.indexer);
+  } else if (options.autoDiscoverIndexer === false) {
+    credentials = findProwlarrIndexer(db, options.definition);
   } else {
     const targets = await discoverSiteTargets(options.prowlarrDb, {
       log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,

@@ -139,6 +139,7 @@ export async function serve(options: ServeOptions): Promise<void> {
             flaresolverrUrl: options.flaresolverrUrl,
             flaresolverrTimeoutMs: options.flaresolverrTimeoutMs,
             debug: options.debug,
+            autoDiscoverIndexer: !explicitTargets,
           });
           store.insert(collected.snapshot);
           results.push({ definition: target.definition, ok: true, statusName: collected.snapshot.statusName });
@@ -175,10 +176,19 @@ export async function serve(options: ServeOptions): Promise<void> {
     process.stderr.write(`[pt-monitor] state DB: ${options.stateDb}\n`);
   });
 
+  const collectInBackground = (): void => {
+    void collectAll().catch((error) => {
+      const detail = error instanceof DiscoveryRefreshError
+        ? error.detail
+        : "Background collection cycle failed.";
+      process.stderr.write(`[pt-monitor] ${detail}\n`);
+    });
+  };
+
   // Start one collection immediately without delaying the HTTP listener.
-  void collectAll();
+  collectInBackground();
   const intervalMs = Math.max(1, options.intervalMinutes ?? 30) * 60_000;
-  const timer = setInterval(() => void collectAll(), intervalMs);
+  const timer = setInterval(collectInBackground, intervalMs);
 
   const shutdown = (): void => {
     clearInterval(timer);
