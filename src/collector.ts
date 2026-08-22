@@ -1,4 +1,4 @@
-import { ProwlarrDB, ProwlarrIndexerResolutionError } from "./prowlarr.ts";
+import { ProwlarrDB } from "./prowlarr.ts";
 import {
   createSite,
   listSiteMetadata,
@@ -89,11 +89,14 @@ export async function findIndexerForDefinition(
   prowlarrDb: string,
   definition: string,
   explicit?: string | number,
+  log: DiscoveryOptions["log"] | null = null,
 ): Promise<IndexerCredentials> {
   const db = new ProwlarrDB(prowlarrDb);
   if (explicit !== undefined) return db.getIndexer(explicit);
 
-  const targets = await discoverSiteTargets(prowlarrDb, { log: () => {} });
+  const targets = await discoverSiteTargets(prowlarrDb, {
+    log: log === null ? () => {} : log,
+  });
   const matchingTargets = targets.filter((target) => target.definition === definition);
   return matchingTargets.length === 1
     ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
@@ -217,9 +220,19 @@ export async function collectSite(options: CollectOptions): Promise<CollectResul
   ensureDom();
   let credentials: IndexerCredentials;
   if (options.indexer !== undefined) {
-    credentials = await findIndexerForDefinition(options.prowlarrDb, options.definition, options.indexer);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      options.indexer,
+      options.debug ? undefined : () => {},
+    );
   } else {
-    credentials = await findIndexerForDefinition(options.prowlarrDb, options.definition);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      undefined,
+      options.debug ? undefined : () => {},
+    );
   }
   const metadata = await loadSiteMetadata(options.definition);
   const inputSetting = mapInputSettings(metadata, credentials.settings, credentials.cookies);

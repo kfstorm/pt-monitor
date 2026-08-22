@@ -74,6 +74,7 @@ export async function serve(options: ServeOptions): Promise<void> {
             options.prowlarrDb,
             target.definition,
             target.prowlarrIndexerId || undefined,
+            () => {},
           );
           const metadata = await loadSiteMetadata(target.definition);
           const url = resolveSiteUrl(indexer, metadata);

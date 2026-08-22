@@ -96,6 +96,22 @@ test("falls back to the configured definition when discovery has no match", asyn
   }
 });
 
+test("forwards discovery diagnostics when requested", async () => {
+  const dir = createProwlarrFixture();
+  try {
+    const logs: string[] = [];
+    await findIndexerForDefinition(
+      join(dir, "prowlarr.db"),
+      "manual-definition",
+      undefined,
+      (message) => logs.push(message),
+    );
+    assert.ok(logs.some((message) => message.includes("skip indexer 100:Manual Site")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("keeps explicit site resolution working when discovery excludes the indexer", async () => {
   const dir = createProwlarrFixture();
   try {
