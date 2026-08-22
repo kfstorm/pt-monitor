@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ExternalLink,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -196,7 +197,23 @@ export function SiteList({
                 >
                   <td className={cn(siteCell, "group-hover/row:bg-muted/30")}>
                     <div className="max-w-36 truncate font-medium">
-                      {site.prowlarrIndexerName}
+                      {site.siteUrl ? (
+                        <a
+                          href={site.siteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={site.siteUrl}
+                          className="inline-flex max-w-full items-center gap-1 rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <span className="truncate">{site.prowlarrIndexerName}</span>
+                          <ExternalLink
+                            aria-hidden="true"
+                            className="size-3 shrink-0"
+                          />
+                        </a>
+                      ) : (
+                        site.prowlarrIndexerName
+                      )}
                     </div>
                     <div className="max-w-36 pt-0.5">
                       <Badge variant="outline" className={status.className}>

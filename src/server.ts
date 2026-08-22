@@ -2,7 +2,15 @@ import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, resolve } from "node:path";
 
-import { collectSite, discoverSiteTargets, type SiteTarget } from "./collector.ts";
+import {
+  collectSite,
+  discoverSiteTargets,
+  findProwlarrIndexer,
+  type SiteTarget,
+} from "./collector.ts";
+import { ProwlarrDB } from "./prowlarr.ts";
+import { loadSiteMetadata } from "./ptdepiler.ts";
+import { resolveSiteUrl } from "./site-url.ts";
 import { SnapshotStore } from "./store.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
@@ -56,6 +64,32 @@ export async function serve(options: ServeOptions): Promise<void> {
   }
 
   let collecting: Promise<unknown> | null = null;
+  const siteUrls = new Map<string, string>();
+
+  const refreshSiteUrls = async (): Promise<void> => {
+    try {
+      const db = new ProwlarrDB(options.prowlarrDb);
+      for (const target of targets) {
+        try {
+          const indexer = findProwlarrIndexer(
+            db,
+            target.definition,
+            target.prowlarrIndexerId || undefined,
+          );
+          const metadata = await loadSiteMetadata(target.definition);
+          const url = resolveSiteUrl(indexer, metadata);
+          const key = siteUrlKey(target.definition, indexer.id);
+          if (url) siteUrls.set(key, url);
+          else siteUrls.delete(key);
+        } catch {
+          // Keep the last valid URL when a refresh fails transiently.
+        }
+      }
+    } catch {
+      // Keep the last valid URLs when Prowlarr is temporarily unavailable.
+    }
+  };
+
   const collectAll = async (): Promise<Array<Record<string, unknown>>> => {
     if (collecting) {
       await collecting;
@@ -63,6 +97,7 @@ export async function serve(options: ServeOptions): Promise<void> {
     }
     const work = (async () => {
       const results: Array<Record<string, unknown>> = [];
+      await refreshSiteUrls();
       for (const target of targets) {
         try {
           const collected = await collectSite({
@@ -96,7 +131,14 @@ export async function serve(options: ServeOptions): Promise<void> {
 
   const server = createServer(async (req, res) => {
     try {
-      await route(req, res, store, targets.map((target) => target.definition), collectAll);
+      await route(
+        req,
+        res,
+        store,
+        targets.map((target) => target.definition),
+        collectAll,
+        siteUrls,
+      );
     } catch (error) {
       writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -132,6 +174,7 @@ async function route(
   store: SnapshotStore,
   definitions: string[],
   collectAll: () => Promise<Array<Record<string, unknown>>>,
+  siteUrls: ReadonlyMap<string, string>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
@@ -143,7 +186,14 @@ async function route(
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/sites") {
-    writeJson(res, 200, store.latest().map(({ raw: _raw, ...item }) => item));
+    writeJson(
+      res,
+      200,
+      store.latest().map(({ raw: _raw, ...item }) => {
+        const siteUrl = siteUrls.get(siteUrlKey(item.definition, item.prowlarrIndexerId));
+        return siteUrl ? { ...item, siteUrl } : item;
+      }),
+    );
     return;
   }
   const historyMatch = url.pathname.match(/^\/api\/sites\/([^/]+)\/history$/);
@@ -194,4 +244,8 @@ function writeJson(res: ServerResponse, status: number, value: unknown): void {
     if (item === -Infinity) return "-Infinity";
     return item;
   })}\n`);
+}
+
+function siteUrlKey(definition: string, prowlarrIndexerId: number): string {
+  return `${definition}:${prowlarrIndexerId}`;
 }
