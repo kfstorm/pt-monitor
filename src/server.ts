@@ -71,13 +71,8 @@ class DiscoveryRefreshError extends Error {
 
 export async function serve(options: ServeOptions): Promise<void> {
   const store = new SnapshotStore(options.stateDb);
-  const explicitTargets: SiteTarget[] | null = options.sites?.length
-    ? options.sites.map((definition) => ({
-        definition,
-        prowlarrIndexerId: 0,
-        prowlarrIndexerName: "",
-        matchReason: "explicit configuration",
-      }))
+  const explicitTargets = options.sites?.length
+    ? await resolveExplicitTargets(options.sites, options)
     : null;
   let discovery: DiscoveryState = explicitTargets
     ? {
@@ -278,6 +273,26 @@ async function initialDiscovery(options: ServeOptions): Promise<DiscoveryState> 
         error: { code: "discovery-failed", detail },
       },
     };
+  }
+}
+
+async function resolveExplicitTargets(definitions: string[], options: ServeOptions): Promise<SiteTarget[]> {
+  try {
+    const discovered = await runDiscovery(options);
+    return definitions.map((definition) => discovered.targets.find((target) => target.definition === definition) ?? {
+      definition,
+      prowlarrIndexerId: 0,
+      prowlarrIndexerName: "",
+      matchReason: "explicit configuration",
+    });
+  } catch (error) {
+    if (options.debug) process.stderr.write(`[pt-monitor] explicit indexer lookup failed: ${discoveryDetail(error)}\n`);
+    return definitions.map((definition) => ({
+      definition,
+      prowlarrIndexerId: 0,
+      prowlarrIndexerName: "",
+      matchReason: "explicit configuration",
+    }));
   }
 }
 
