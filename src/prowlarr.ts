@@ -226,7 +226,7 @@ export class ProwlarrDB {
 
     if (numeric !== null) {
       const match = all.find((item) => item.id === numeric);
-      if (!match) throw new Error(`Prowlarr indexer id ${numeric} not found`);
+      if (!match) throw new ProwlarrIndexerResolutionError(`Prowlarr indexer id ${numeric} not found`);
       return match;
     }
 
@@ -237,14 +237,16 @@ export class ProwlarrDB {
     const partial = all.filter((item) => item.name.toLocaleLowerCase().includes(wanted));
     if (partial.length === 1) return partial[0];
     if (partial.length > 1) {
-      throw new Error(
+      throw new ProwlarrIndexerResolutionError(
         `Ambiguous Prowlarr indexer ${JSON.stringify(selector)}: ${partial.map((x) => `${x.id}:${x.name}`).join(", ")}`,
       );
     }
 
-    throw new Error(`Prowlarr indexer ${JSON.stringify(selector)} not found`);
+    throw new ProwlarrIndexerResolutionError(`Prowlarr indexer ${JSON.stringify(selector)} not found`);
   }
 }
+
+export class ProwlarrIndexerResolutionError extends Error {}
 
 export const _test = {
   parseCookieHeader,

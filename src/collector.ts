@@ -67,6 +67,10 @@ export interface DiscoveryOptions {
   log?: (message: string) => void;
 }
 
+export function discoveryOptions(debug?: boolean): DiscoveryOptions {
+  return { log: debug ? undefined : () => {} };
+}
+
 function runtimeOptions(options: CollectOptions): RuntimeOptions {
   const timeoutMs = options.timeoutMs ?? 30_000;
   return {
@@ -98,6 +102,24 @@ export function findProwlarrIndexer(db: ProwlarrDB, definition: string, explicit
   if (byName.length === 1) return byName[0];
 
   return db.getIndexer(definition);
+}
+
+export async function findIndexerForDefinition(
+  prowlarrDb: string,
+  definition: string,
+  explicit?: string | number,
+  log?: DiscoveryOptions["log"],
+): Promise<IndexerCredentials> {
+  const db = new ProwlarrDB(prowlarrDb);
+  if (explicit !== undefined) return db.getIndexer(explicit);
+
+  const targets = await discoverSiteTargets(prowlarrDb, {
+    log: log ?? ((message) => process.stderr.write(`${message}\n`)),
+  });
+  const matchingTargets = targets.filter((target) => target.definition === definition);
+  return matchingTargets.length === 1
+    ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
+    : findProwlarrIndexer(db, definition);
 }
 
 function normalized(value: unknown): string {

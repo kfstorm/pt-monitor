@@ -4,6 +4,9 @@ import { extname, resolve } from "node:path";
 
 import { collectSite, discoverSiteResult, type DiscoveryResult, type SiteTarget, type SkippedSite } from "./collector.ts";
 import { SnapshotStore, type StoredSnapshot } from "./store.ts";
+import { loadSiteMetadata, SiteMetadataResolutionError } from "./ptdepiler.ts";
+import { ProwlarrDB, ProwlarrIndexerResolutionError } from "./prowlarr.ts";
+import { resolveSiteUrl } from "./site-url.ts";
 import { sanitizeErrorMessage } from "./upstream-console.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
@@ -88,6 +91,30 @@ export async function serve(options: ServeOptions): Promise<void> {
   }
 
   let collecting: Promise<unknown> | null = null;
+  const siteUrls = new Map<string, string>();
+
+  const refreshSiteUrls = async (): Promise<void> => {
+    const db = new ProwlarrDB(options.prowlarrDb);
+    for (const target of discovery.targets) {
+      if (target.prowlarrIndexerId < 0) continue;
+      try {
+        const indexer = db.getIndexer(target.prowlarrIndexerId);
+        const metadata = await loadSiteMetadata(target.definition);
+        const url = resolveSiteUrl(indexer, metadata);
+        const key = siteUrlKey(target.definition, indexer.id);
+        if (url) siteUrls.set(key, url);
+        else siteUrls.delete(key);
+      } catch (error) {
+        if (error instanceof ProwlarrIndexerResolutionError || error instanceof SiteMetadataResolutionError) {
+          clearSiteUrls(siteUrls, target.definition);
+        }
+        // Keep the last valid URL when a refresh fails transiently.
+      }
+    }
+  };
+
+  await refreshSiteUrls();
+
   const refreshDiscovery = async (): Promise<boolean> => {
     try {
       const result = await runDiscovery(options);
@@ -98,6 +125,7 @@ export async function serve(options: ServeOptions): Promise<void> {
       if (discovery.targets.length === 0) {
         process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
       }
+      await refreshSiteUrls();
       return true;
     } catch (error) {
       const detail = discoveryDetail(error);
@@ -123,6 +151,7 @@ export async function serve(options: ServeOptions): Promise<void> {
       if (!explicitTargets && !(await refreshDiscovery())) {
         throw new DiscoveryRefreshError(discovery.discovery.error?.detail ?? "Prowlarr discovery is unavailable");
       }
+      if (explicitTargets) await refreshSiteUrls();
       const results: Array<Record<string, unknown>> = [];
       for (const target of discovery.targets) {
         if (target.prowlarrIndexerId < 0) {
@@ -165,7 +194,14 @@ export async function serve(options: ServeOptions): Promise<void> {
 
   const server = createServer(async (req, res) => {
     try {
-      await route(req, res, store, () => discovery, collectAll);
+      await route(
+        req,
+        res,
+        store,
+        () => discovery,
+        collectAll,
+        siteUrls,
+      );
     } catch (error) {
       writeJson(res, 500, {
         error: { code: "internal-error", detail: sanitizeErrorMessage(error) },
@@ -212,6 +248,7 @@ export async function route(
   store: SnapshotStore,
   getDiscovery: () => DiscoveryState,
   collectAll: () => Promise<Array<Record<string, unknown>>>,
+  siteUrls: ReadonlyMap<string, string> = new Map(),
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
@@ -235,7 +272,10 @@ export async function route(
     writeJson(res, 200, {
       sites: [...sites.values()]
         .sort((a, b) => a.definition.localeCompare(b.definition, undefined, { sensitivity: "base" }))
-        .map(({ raw: _raw, ...item }) => item),
+        .map(({ raw: _raw, ...item }) => {
+          const siteUrl = siteUrls.get(siteUrlKey(item.definition, item.prowlarrIndexerId));
+          return siteUrl ? { ...item, siteUrl } : item;
+        }),
       skipped: state.skipped,
       discovery: state.discovery,
     });
@@ -371,4 +411,15 @@ function writeJson(res: ServerResponse, status: number, value: unknown): void {
     if (item === -Infinity) return "-Infinity";
     return item;
   })}\n`);
+}
+
+function siteUrlKey(definition: string, prowlarrIndexerId: number): string {
+  return `${definition}:${prowlarrIndexerId}`;
+}
+
+function clearSiteUrls(siteUrls: Map<string, string>, definition: string): void {
+  const prefix = `${definition}:`;
+  for (const key of siteUrls.keys()) {
+    if (key.startsWith(prefix)) siteUrls.delete(key);
+  }
 }

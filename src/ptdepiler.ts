@@ -6,9 +6,18 @@ import { installDomGlobals } from "./dom.ts";
 
 const vendorRoot = resolve("vendor/PT-depiler");
 
+export class SiteMetadataResolutionError extends Error {}
+
 async function importTsFile(path: string): Promise<Record<string, any>> {
-  if (!existsSync(path)) throw new Error(`Missing vendored PT-depiler file: ${path}. Run: pnpm bootstrap`);
-  return (await import(pathToFileURL(path).href)) as Record<string, any>;
+  if (!existsSync(path)) {
+    throw new SiteMetadataResolutionError(`Missing vendored PT-depiler file: ${path}. Run: pnpm bootstrap`);
+  }
+  try {
+    return (await import(pathToFileURL(path).href)) as Record<string, any>;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new SiteMetadataResolutionError(`Unable to load PT-depiler file: ${path}: ${detail}`);
+  }
 }
 
 export interface SiteMetadataRecord {
@@ -23,7 +32,9 @@ export async function loadSiteMetadata(definition: string): Promise<Record<strin
   const definitionPath = resolve(vendorRoot, `src/packages/site/definitions/${definition}.ts`);
   const definitionModule = await importTsFile(definitionPath);
   const metadata = definitionModule.siteMetadata;
-  if (!metadata) throw new Error(`PT-depiler definition ${definition} has no siteMetadata export`);
+  if (!metadata) {
+    throw new SiteMetadataResolutionError(`PT-depiler definition ${definition} has no siteMetadata export`);
+  }
   return metadata;
 }
 
