@@ -139,10 +139,9 @@ export async function serve(options: ServeOptions): Promise<void> {
           store.insert(collected.snapshot);
           results.push({ definition: target.definition, ok: true, statusName: collected.snapshot.statusName });
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const detail = error instanceof Error ? error.stack ?? message : String(error);
+          const detail = safeErrorDetail(error);
           process.stderr.write(`[pt-monitor] collect ${target.definition}: ${detail}\n`);
-          results.push({ definition: target.definition, ok: false, error: message });
+          results.push({ definition: target.definition, ok: false, error: detail });
         }
       }
       return results;
@@ -159,7 +158,9 @@ export async function serve(options: ServeOptions): Promise<void> {
     try {
       await route(req, res, store, () => discovery, collectAll);
     } catch (error) {
-      writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+      writeJson(res, 500, {
+        error: { code: "internal-error", detail: safeErrorDetail(error) },
+      });
     }
   });
 
@@ -214,10 +215,14 @@ export async function route(
   }
   if (req.method === "GET" && url.pathname === "/api/sites") {
     const state = getDiscovery();
-    const definitions = new Set(state.targets.map((target) => target.definition));
+    const currentTarget = (site: { definition: string; prowlarrIndexerId: number }): boolean =>
+      state.targets.some(
+        (target) => target.definition === site.definition
+          && (target.prowlarrIndexerId === 0 || target.prowlarrIndexerId === site.prowlarrIndexerId),
+      );
     writeJson(res, 200, {
       sites: store.latest()
-        .filter((site) => definitions.has(site.definition))
+        .filter(currentTarget)
         .map(({ raw: _raw, ...item }) => item),
       skipped: state.skipped,
       discovery: state.discovery,
@@ -230,10 +235,12 @@ export async function route(
     const hoursRaw = Number(url.searchParams.get("hours") ?? 168);
     const hours = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.min(hoursRaw, 24 * 365) : 168;
     const since = Date.now() - hours * 3600_000;
+    const target = getDiscovery().targets.find((item) => item.definition === definition);
     writeJson(
       res,
       200,
-      store.history(definition, since).map(({ raw: _raw, ...item }) => item),
+      store.history(definition, since, 2000, target?.prowlarrIndexerId || undefined)
+        .map(({ raw: _raw, ...item }) => item),
     );
     return;
   }
@@ -279,11 +286,14 @@ async function initialDiscovery(options: ServeOptions): Promise<DiscoveryState> 
 async function resolveExplicitTargets(definitions: string[], options: ServeOptions): Promise<SiteTarget[]> {
   try {
     const discovered = await runDiscovery(options);
-    return definitions.map((definition) => discovered.targets.find((target) => target.definition === definition) ?? {
-      definition,
-      prowlarrIndexerId: 0,
-      prowlarrIndexerName: "",
-      matchReason: "explicit configuration",
+    return definitions.map((definition) => {
+      const matches = discovered.targets.filter((target) => target.definition === definition);
+      return matches.length === 1 ? matches[0] : {
+        definition,
+        prowlarrIndexerId: 0,
+        prowlarrIndexerName: "",
+        matchReason: "explicit configuration",
+      };
     });
   } catch (error) {
     if (options.debug) process.stderr.write(`[pt-monitor] explicit indexer lookup failed: ${discoveryDetail(error)}\n`);
@@ -307,6 +317,13 @@ function discoveryDetail(error: unknown): string {
     return error.message;
   }
   return "Unable to inspect Prowlarr indexers or PT-depiler metadata.";
+}
+
+function safeErrorDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=[^&\s]*)/gi, "$1=[redacted]")
+    .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
 }
 
 function serveStatic(res: ServerResponse, pathname: string): void {

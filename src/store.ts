@@ -106,13 +106,17 @@ export class SnapshotStore {
     return row ? rowToSnapshot(row) : null;
   }
 
-  history(definition: string, since: number, limit = 2000): StoredSnapshot[] {
+  history(definition: string, since: number, limit = 2000, prowlarrIndexerId?: number): StoredSnapshot[] {
+    const indexerClause = prowlarrIndexerId === undefined ? "" : " AND prowlarr_indexer_id = ?";
+    const params = prowlarrIndexerId === undefined
+      ? [definition, since, limit]
+      : [definition, since, prowlarrIndexerId, limit];
     const rows = this.db.prepare(`
       SELECT * FROM snapshots
-      WHERE definition = ? AND collected_at >= ?
+      WHERE definition = ? AND collected_at >= ?${indexerClause}
       ORDER BY collected_at ASC, id ASC
       LIMIT ?
-    `).all(definition, since, limit) as Array<Record<string, unknown>>;
+    `).all(...params) as Array<Record<string, unknown>>;
     return rows.map(rowToSnapshot);
   }
 }

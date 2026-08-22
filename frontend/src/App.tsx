@@ -64,8 +64,17 @@ export default function App() {
   const refresh = useCallback(async () => {
     setCollecting(true);
     try {
-      await collectNow();
+      const results = await collectNow();
       await load();
+      const failures = results.filter((result) => !result.ok);
+      if (failures.length > 0) {
+        setError({
+          key: "error.collect",
+          detail: failures
+            .map((result) => `${result.definition}: ${result.error ?? "failed"}`)
+            .join("; "),
+        });
+      }
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       await load();
