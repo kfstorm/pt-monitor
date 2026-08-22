@@ -95,19 +95,9 @@ export async function findIndexerForDefinition(
 
   const targets = await discoverSiteTargets(prowlarrDb, { log: () => {} });
   const matchingTargets = targets.filter((target) => target.definition === definition);
-  if (matchingTargets.length > 1) {
-    throw new ProwlarrIndexerResolutionError(
-      `Ambiguous discovered indexers for definition ${definition}: ${matchingTargets
-        .map((target) => `${target.prowlarrIndexerId}:${target.prowlarrIndexerName}`)
-        .join(", ")}`,
-    );
-  }
-  if (matchingTargets.length === 0) {
-    throw new ProwlarrIndexerResolutionError(
-      `No discovered Prowlarr indexer is bound to definition ${definition}`,
-    );
-  }
-  return db.getIndexer(matchingTargets[0].prowlarrIndexerId);
+  return matchingTargets.length === 1
+    ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
+    : findProwlarrIndexer(db, definition);
 }
 
 function normalized(value: unknown): string {
