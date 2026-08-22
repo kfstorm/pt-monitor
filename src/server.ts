@@ -60,7 +60,7 @@ export async function serve(options: ServeOptions): Promise<void> {
         log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
       });
   const targets = discovery.targets;
-  let skipped = discovery.skipped;
+  const skipped = discovery.skipped;
 
   if (targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
@@ -68,17 +68,6 @@ export async function serve(options: ServeOptions): Promise<void> {
 
   let collecting: Promise<unknown> | null = null;
   const siteUrls = new Map<string, string>();
-
-  const refreshSkipped = async (): Promise<void> => {
-    if (options.sites?.length) return;
-    try {
-      skipped = (await discoverSiteResult(options.prowlarrDb, {
-        log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
-      })).skipped;
-    } catch {
-      // Keep the last successful diagnostics when discovery is temporarily unavailable.
-    }
-  };
 
   const refreshSiteUrls = async (): Promise<void> => {
     try {
@@ -116,7 +105,6 @@ export async function serve(options: ServeOptions): Promise<void> {
     }
     const work = (async () => {
       const results: Array<Record<string, unknown>> = [];
-      await refreshSkipped();
       await refreshSiteUrls();
       for (const target of targets) {
         try {
