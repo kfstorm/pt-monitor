@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { discoverSiteTargets, findIndexerForDefinition } from "../src/collector.ts";
+import {
+  discoveryOptions,
+  discoverSiteTargets,
+  findIndexerForDefinition,
+} from "../src/collector.ts";
 import { mapInputSettings } from "../src/ptdepiler.ts";
 
 function createProwlarrFixture(): string {
@@ -110,6 +114,28 @@ test("forwards discovery diagnostics when requested", async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("uses the default stderr logger when diagnostics are undefined", async () => {
+  const dir = createProwlarrFixture();
+  const originalWrite = process.stderr.write;
+  let output = "";
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    output += chunk.toString();
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    await findIndexerForDefinition(join(dir, "prowlarr.db"), "manual-definition", undefined, undefined);
+    assert.match(output, /skip indexer 100:Manual Site/);
+  } finally {
+    process.stderr.write = originalWrite;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("selects discovery diagnostics from debug mode", () => {
+  assert.equal(discoveryOptions(true).log, undefined);
+  assert.equal(typeof discoveryOptions(false).log, "function");
 });
 
 test("keeps explicit site resolution working when discovery excludes the indexer", async () => {

@@ -4,6 +4,7 @@ import { extname, resolve } from "node:path";
 
 import {
   collectSite,
+  discoveryOptions,
   discoverSiteTargets,
   findIndexerForDefinition,
   type SiteTarget,
@@ -58,7 +59,7 @@ export async function serve(options: ServeOptions): Promise<void> {
         prowlarrIndexerName: "",
         matchReason: "explicit configuration",
       }))
-    : await discoverSiteTargets(options.prowlarrDb);
+    : await discoverSiteTargets(options.prowlarrDb, discoveryOptions(options.debug));
   if (targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
   }
