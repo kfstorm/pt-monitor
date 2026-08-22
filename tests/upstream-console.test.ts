@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { withUpstreamConsole } from "../src/upstream-console.ts";
+import { sanitizeErrorMessage, withUpstreamConsole } from "../src/upstream-console.ts";
 
 test("redacts credential values from upstream debug output", async () => {
   const output: string[] = [];
@@ -27,4 +27,12 @@ test("redacts credential values from upstream debug output", async () => {
   assert.match(rendered, /safe diagnostic/);
   assert.match(rendered, /\[REDACTED\]/);
   assert.doesNotMatch(rendered, /test-token|test-password|test-cookie|test-api-key/);
+});
+
+test("redacts credential values embedded in diagnostic strings", () => {
+  const rendered = sanitizeErrorMessage(
+    "Request failed: Cookie: session=string-secret; cf_clearance=string-secret-2 Authorization: Bearer string-token",
+  );
+  assert.doesNotMatch(rendered, /string-secret|string-token/);
+  assert.match(rendered, /\[redacted\]/);
 });

@@ -2,8 +2,19 @@ import { formatWithOptions } from "node:util";
 
 const sensitiveKey = /cookie|password|passkey|token|api[-_]?key|secret|authorization/i;
 
+export function sanitizeErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=)[^&\s]*/gi, "$1[redacted]")
+    .replace(/\b(?:cookie|set-cookie)\s*[:=]\s*[^\r\n]*/gi, "cookie=[redacted]")
+    .replace(/(["'](?:cookie|password|api[_-]?key|token|passkey|authorization)["']\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
+    .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1=[redacted]")
+    .replace(/(https?:\/\/[^/\s:@]+:)[^@\s]+@/gi, "$1[redacted]@");
+}
+
 function sanitizeForLog(value: unknown, key?: string): unknown {
   if (key && sensitiveKey.test(key)) return "[REDACTED]";
+  if (typeof value === "string") return sanitizeErrorMessage(value);
   if (Array.isArray(value)) return value.map((item) => sanitizeForLog(item));
   if (value && typeof value === "object") {
     return Object.fromEntries(

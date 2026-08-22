@@ -4,6 +4,7 @@ import { extname, resolve } from "node:path";
 
 import { collectSite, discoverSiteResult, type DiscoveryResult, type SiteTarget, type SkippedSite } from "./collector.ts";
 import { SnapshotStore, type StoredSnapshot } from "./store.ts";
+import { sanitizeErrorMessage } from "./upstream-console.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
 
@@ -147,7 +148,7 @@ export async function serve(options: ServeOptions): Promise<void> {
           store.insert(collected.snapshot);
           results.push({ definition: target.definition, ok: true, statusName: collected.snapshot.statusName });
         } catch (error) {
-          const detail = safeErrorDetail(error);
+          const detail = sanitizeErrorMessage(error);
           process.stderr.write(`[pt-monitor] collect ${target.definition}: ${detail}\n`);
           results.push({ definition: target.definition, ok: false, error: detail });
         }
@@ -167,7 +168,7 @@ export async function serve(options: ServeOptions): Promise<void> {
       await route(req, res, store, () => discovery, collectAll);
     } catch (error) {
       writeJson(res, 500, {
-        error: { code: "internal-error", detail: safeErrorDetail(error) },
+        error: { code: "internal-error", detail: sanitizeErrorMessage(error) },
       });
     }
   });
@@ -340,15 +341,6 @@ function activeTarget(state: DiscoveryState, definition: string): SiteTarget | n
   return targets.length === 1 ? targets[0] : null;
 }
 
-function safeErrorDetail(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message
-    .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=)[^&\s]*/gi, "$1[redacted]")
-    .replace(/\b(?:cookie|set-cookie)\s*[:=]\s*[^\r\n]*/gi, "cookie=[redacted]")
-    .replace(/(["'](?:cookie|password|api[_-]?key|token|passkey|authorization)["']\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
-    .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1=[redacted]")
-    .replace(/(https?:\/\/[^/\s:@]+:)[^@\s]+@/gi, "$1[redacted]@");
-}
 
 function serveStatic(res: ServerResponse, pathname: string): void {
   const fileName = pathname === "/" ? "index.html" : pathname.slice(1);
