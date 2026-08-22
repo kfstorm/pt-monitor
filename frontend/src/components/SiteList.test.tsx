@@ -155,6 +155,37 @@ describe("SiteList", () => {
     expect(cell?.textContent).not.toContain("chdbits");
   });
 
+  it("links the site name to its URL in a new tab", () => {
+    const { container } = renderList([
+      site({
+        prowlarrIndexerName: "CHDBits",
+        siteUrl: "https://chdbits.example/pt?source=monitor#home",
+      }),
+    ]);
+    const link = within(container).getByRole("link", { name: /CHDBits/i });
+
+    expect(link).toHaveAttribute(
+      "href",
+      "https://chdbits.example/pt?source=monitor#home",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveAttribute(
+      "title",
+      "https://chdbits.example/pt?source=monitor#home",
+    );
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps the site name as plain text when no URL is available", () => {
+    const { container } = renderList([site({ prowlarrIndexerName: "CHDBits" })]);
+
+    expect(within(container).queryByRole("link", { name: /CHDBits/i })).toBeNull();
+    expect(container.querySelector("tbody td:first-child")?.textContent).toContain(
+      "CHDBits",
+    );
+  });
+
   it("renders all columns without responsive hiding", () => {
     const { container } = renderList([site({})]);
     expect(container.querySelectorAll("thead th.hidden, tbody td.hidden")).toHaveLength(

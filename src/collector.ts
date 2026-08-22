@@ -52,6 +52,10 @@ export interface DiscoveryOptions {
   log?: (message: string) => void;
 }
 
+export function discoveryOptions(debug?: boolean): DiscoveryOptions {
+  return { log: debug ? undefined : () => {} };
+}
+
 function runtimeOptions(options: CollectOptions): RuntimeOptions {
   const timeoutMs = options.timeoutMs ?? 30_000;
   return {
@@ -83,6 +87,24 @@ export function findProwlarrIndexer(db: ProwlarrDB, definition: string, explicit
   if (byName.length === 1) return byName[0];
 
   return db.getIndexer(definition);
+}
+
+export async function findIndexerForDefinition(
+  prowlarrDb: string,
+  definition: string,
+  explicit?: string | number,
+  log?: DiscoveryOptions["log"],
+): Promise<IndexerCredentials> {
+  const db = new ProwlarrDB(prowlarrDb);
+  if (explicit !== undefined) return db.getIndexer(explicit);
+
+  const targets = await discoverSiteTargets(prowlarrDb, {
+    log,
+  });
+  const matchingTargets = targets.filter((target) => target.definition === definition);
+  return matchingTargets.length === 1
+    ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
+    : findProwlarrIndexer(db, definition);
 }
 
 function normalized(value: unknown): string {
@@ -200,16 +222,21 @@ export async function discoverSiteTargets(prowlarrDb: string, options: Discovery
 
 export async function collectSite(options: CollectOptions): Promise<CollectResult> {
   ensureDom();
-  const db = new ProwlarrDB(options.prowlarrDb);
   let credentials: IndexerCredentials;
   if (options.indexer !== undefined) {
-    credentials = findProwlarrIndexer(db, options.definition, options.indexer);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      options.indexer,
+      discoveryOptions(options.debug).log,
+    );
   } else {
-    const targets = await discoverSiteTargets(options.prowlarrDb, { log: options.debug ? undefined : () => {} });
-    const matchingTargets = targets.filter((target) => target.definition === options.definition);
-    credentials = matchingTargets.length === 1
-      ? db.getIndexer(matchingTargets[0].prowlarrIndexerId)
-      : findProwlarrIndexer(db, options.definition);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      undefined,
+      discoveryOptions(options.debug).log,
+    );
   }
   const metadata = await loadSiteMetadata(options.definition);
   const inputSetting = mapInputSettings(metadata, credentials.settings, credentials.cookies);
