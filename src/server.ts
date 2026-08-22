@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, resolve } from "node:path";
 
 import { collectSite, discoverSiteResult, type DiscoveryResult, type SiteTarget, type SkippedSite } from "./collector.ts";
-import { SnapshotStore } from "./store.ts";
+import { SnapshotStore, type StoredSnapshot } from "./store.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
 
@@ -215,14 +215,18 @@ export async function route(
   }
   if (req.method === "GET" && url.pathname === "/api/sites") {
     const state = getDiscovery();
-    const currentTarget = (site: { definition: string; prowlarrIndexerId: number }): boolean =>
-      state.targets.some(
-        (target) => target.definition === site.definition
-          && (target.prowlarrIndexerId === 0 || target.prowlarrIndexerId === site.prowlarrIndexerId),
-      );
+    const sites = new Map<string, StoredSnapshot>();
+    for (const target of state.targets) {
+      const site = store.latestFor(target.definition, target.prowlarrIndexerId || undefined);
+      if (!site) continue;
+      const existing = sites.get(site.definition);
+      if (!existing || site.collectedAt > existing.collectedAt || site.id > existing.id) {
+        sites.set(site.definition, site);
+      }
+    }
     writeJson(res, 200, {
-      sites: store.latest()
-        .filter(currentTarget)
+      sites: [...sites.values()]
+        .sort((a, b) => a.definition.localeCompare(b.definition, undefined, { sensitivity: "base" }))
         .map(({ raw: _raw, ...item }) => item),
       skipped: state.skipped,
       discovery: state.discovery,
@@ -322,8 +326,10 @@ function discoveryDetail(error: unknown): string {
 function safeErrorDetail(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message
-    .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=[^&\s]*)/gi, "$1=[redacted]")
-    .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
+    .replace(/([?&](?:api[_-]?key|token|passkey|password|cookie|authorization)=)[^&\s]*/gi, "$1[redacted]")
+    .replace(/(["'](?:cookie|password|api[_-]?key|token|passkey|authorization)["']\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
+    .replace(/\b(cookie|password|api[_-]?key|token|passkey|authorization)\s*[:=]\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, "$1=[redacted]")
+    .replace(/(https?:\/\/[^/\s:@]+:)[^@\s]+@/gi, "$1[redacted]@");
 }
 
 function serveStatic(res: ServerResponse, pathname: string): void {

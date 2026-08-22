@@ -186,7 +186,11 @@ const server = createServer((req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/collect") {
-    res.end("{}");
+    res.end(JSON.stringify(SITES.map((site) => ({
+      definition: site.definition,
+      ok: true,
+      statusName: site.status,
+    }))));
     return;
   }
 

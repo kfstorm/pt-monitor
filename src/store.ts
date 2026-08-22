@@ -96,13 +96,15 @@ export class SnapshotStore {
     return rows.map(rowToSnapshot);
   }
 
-  latestFor(definition: string): StoredSnapshot | null {
+  latestFor(definition: string, prowlarrIndexerId?: number): StoredSnapshot | null {
+    const indexerClause = prowlarrIndexerId === undefined ? "" : " AND prowlarr_indexer_id = ?";
+    const params = prowlarrIndexerId === undefined ? [definition] : [definition, prowlarrIndexerId];
     const row = this.db.prepare(`
       SELECT * FROM snapshots
-      WHERE definition = ?
+      WHERE definition = ?${indexerClause}
       ORDER BY collected_at DESC, id DESC
       LIMIT 1
-    `).get(definition) as Record<string, unknown> | undefined;
+    `).get(...params) as Record<string, unknown> | undefined;
     return row ? rowToSnapshot(row) : null;
   }
 
