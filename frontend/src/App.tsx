@@ -11,7 +11,7 @@ import { Summary } from "@/components/Summary";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fmtTime } from "@/lib/format";
 import { useMetric } from "@/lib/use-metric";
-import type { DiscoveryMeta, Site, SkippedSite } from "@/types";
+import type { Site, SkippedSite } from "@/types";
 
 type AppError = {
   key: "error.load" | "error.collect";
@@ -22,10 +22,6 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [sites, setSites] = useState<Site[]>([]);
   const [skipped, setSkipped] = useState<SkippedSite[]>([]);
-  const [discovery, setDiscovery] = useState<DiscoveryMeta>({
-    status: "ready",
-    updatedAt: null,
-  });
   const [histories, setHistories] = useState<Record<string, Site[]>>({});
   const [loading, setLoading] = useState(true);
   const [collecting, setCollecting] = useState(false);
@@ -37,7 +33,6 @@ export default function App() {
       const payload = await fetchSites();
       setSites(payload.sites);
       setSkipped(payload.skipped);
-      setDiscovery(payload.discovery);
       const entries = await Promise.all(
         payload.sites.map(
           async (site) =>
@@ -64,20 +59,10 @@ export default function App() {
   const refresh = useCallback(async () => {
     setCollecting(true);
     try {
-      const results = await collectNow();
+      await collectNow();
       await load();
-      const failures = results.filter((result) => !result.ok);
-      if (failures.length > 0) {
-        setError({
-          key: "error.collect",
-          detail: failures
-            .map((result) => `${result.definition}: ${result.error ?? "failed"}`)
-            .join("; "),
-        });
-      }
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
-      await load();
       setError({ key: "error.collect", detail });
     } finally {
       setCollecting(false);
@@ -169,7 +154,7 @@ export default function App() {
         </div>
       )}
 
-      <DiscoveryDiagnostics skipped={skipped} discovery={discovery} />
+      <DiscoveryDiagnostics skipped={skipped} />
     </main>
   );
 }

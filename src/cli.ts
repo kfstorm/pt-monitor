@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { ProwlarrDB } from "./prowlarr.ts";
 import { vendorMarkerPath, vendorRootPath } from "./ptdepiler.ts";
-import { sanitizeErrorMessage } from "./upstream-console.ts";
 
 interface ParsedArgs {
   positionals: string[];
@@ -210,6 +209,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(`[pt-monitor] ${sanitizeErrorMessage(error)}`);
+  console.error(`[pt-monitor] ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
   process.exitCode = 1;
 });

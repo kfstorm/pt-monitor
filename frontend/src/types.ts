@@ -13,19 +13,7 @@ export interface SkippedSite {
   candidates?: string[];
 }
 
-export interface DiscoveryError {
-  code: string;
-  detail: string;
-}
-
-export interface DiscoveryMeta {
-  status: "ready" | "error" | "disabled";
-  updatedAt: string | null;
-  error?: DiscoveryError;
-}
-
 export interface SitesResponse {
   sites: Site[];
   skipped: SkippedSite[];
-  discovery: DiscoveryMeta;
 }

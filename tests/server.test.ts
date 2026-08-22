@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { normalizeUserInfo } from "../src/normalize.ts";
 import { SnapshotStore } from "../src/store.ts";
-import { route, type DiscoveryState } from "../src/server.ts";
+import { route } from "../src/server.ts";
 
 function response(): { value: () => unknown; server: ServerResponse } {
   let body: unknown;
@@ -20,18 +20,6 @@ function response(): { value: () => unknown; server: ServerResponse } {
   return { value: () => body, server };
 }
 
-async function getSites(store: SnapshotStore, state: DiscoveryState): Promise<unknown> {
-  const output = response();
-  await route(
-    { method: "GET", url: "/api/sites" } as IncomingMessage,
-    output.server,
-    store,
-    () => state,
-    async () => [],
-  );
-  return output.value();
-}
-
 function snapshot(definition: string, id: number) {
   return normalizeUserInfo(
     definition,
@@ -41,82 +29,33 @@ function snapshot(definition: string, id: number) {
   );
 }
 
-test("aggregated sites response filters snapshots by current targets", async () => {
+test("sites API preserves current snapshots and adds skipped diagnostics", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pt-monitor-server-"));
   const store = new SnapshotStore(join(dir, "state.db"));
   try {
     store.insert(snapshot("current", 1));
     store.insert(snapshot("removed", 2));
-    const state: DiscoveryState = {
-      targets: [{ definition: "current", prowlarrIndexerId: 1, prowlarrIndexerName: "Current", matchReason: "test" }],
-      skipped: [{ prowlarrIndexerId: 3, prowlarrIndexerName: "Missing", reason: "no-match" }],
-      discovery: { status: "ready", updatedAt: "2026-08-22T12:00:00.000Z" },
-    };
+    const skipped = [
+      { prowlarrIndexerId: 1, prowlarrIndexerName: "No Match", reason: "no-match" as const },
+      { prowlarrIndexerId: 2, prowlarrIndexerName: "Ambiguous", reason: "ambiguous" as const, candidates: ["foo", "bar"] },
+      { prowlarrIndexerId: 3, prowlarrIndexerName: "Dead", reason: "dead" as const },
+    ];
+    const output = response();
 
-    assert.deepEqual(await getSites(store, state), {
-      sites: [
-        {
-          id: 1,
-          definition: "current",
-          prowlarrIndexerId: 1,
-          prowlarrIndexerName: "CURRENT",
-          collectedAt: 1000,
-          status: null,
-          statusName: "unknown",
-          uploaded: 10,
-          downloaded: null,
-          ratio: null,
-          bonus: null,
-          seedingBonus: null,
-          bonusPerHour: null,
-          seedingCount: null,
-          seedingSize: null,
-          hnrUnsatisfied: null,
-          hnrPreWarning: null,
-          username: "current",
-          level: null,
-        },
-      ],
-      skipped: state.skipped,
-      discovery: state.discovery,
-    });
+    await route(
+      { method: "GET", url: "/api/sites" } as IncomingMessage,
+      output.server,
+      store,
+      ["current"],
+      async () => [],
+      new Map(),
+      skipped,
+    );
+
+    const body = output.value() as { sites: Array<{ definition: string }>; skipped: unknown };
+    assert.deepEqual(body.sites.map(({ definition }) => definition), ["current", "removed"]);
+    assert.deepEqual(body.skipped, skipped);
     assert.deepEqual(store.history("removed", 0).map(({ definition }) => definition), ["removed"]);
-  } finally {
-    store.close();
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("aggregated sites response preserves discovery error and disabled states", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pt-monitor-server-"));
-  const store = new SnapshotStore(join(dir, "state.db"));
-  try {
-    const skipped = [{ prowlarrIndexerId: 3, prowlarrIndexerName: "Missing", reason: "no-match" as const }];
-    const errorState: DiscoveryState = {
-      targets: [],
-      skipped,
-      discovery: {
-        status: "error",
-        updatedAt: "2026-08-22T12:00:00.000Z",
-        error: { code: "discovery-failed", detail: "database unavailable" },
-      },
-    };
-    const disabledState: DiscoveryState = {
-      targets: [{ definition: "manual", prowlarrIndexerId: 0, prowlarrIndexerName: "", matchReason: "explicit configuration" }],
-      skipped: [],
-      discovery: { status: "disabled", updatedAt: null },
-    };
-
-    assert.deepEqual((await getSites(store, errorState)), {
-      sites: [],
-      skipped,
-      discovery: errorState.discovery,
-    });
-    assert.deepEqual((await getSites(store, disabledState)), {
-      sites: [],
-      skipped: [],
-      discovery: { status: "disabled", updatedAt: null },
-    });
   } finally {
     store.close();
     rmSync(dir, { recursive: true, force: true });

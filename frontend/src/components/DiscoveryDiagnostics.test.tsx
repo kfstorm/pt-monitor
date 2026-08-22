@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { DiscoveryDiagnostics } from "@/components/DiscoveryDiagnostics";
 import i18n from "@/i18n";
-import type { DiscoveryMeta, SkippedSite } from "@/types";
+import type { SkippedSite } from "@/types";
 
-const ready: DiscoveryMeta = { status: "ready", updatedAt: "2026-08-22T12:00:00.000Z" };
-
-function renderDiagnostics(skipped: SkippedSite[], discovery = ready) {
-  return render(<DiscoveryDiagnostics skipped={skipped} discovery={discovery} />);
+function renderDiagnostics(skipped: SkippedSite[]) {
+  return render(<DiscoveryDiagnostics skipped={skipped} />);
 }
 
 beforeEach(async () => {
@@ -21,9 +19,10 @@ describe("DiscoveryDiagnostics", () => {
     expect(screen.queryByText(/Unmonitored Prowlarr sites/)).not.toBeInTheDocument();
   });
 
-  it("renders skipped sites collapsed and sorted by Prowlarr name", () => {
+  it("renders all structured reasons and candidates in a collapsed section", () => {
     renderDiagnostics([
-      { prowlarrIndexerId: 2, prowlarrIndexerName: "Zulu", reason: "dead" },
+      { prowlarrIndexerId: 3, prowlarrIndexerName: "Zulu", reason: "dead" },
+      { prowlarrIndexerId: 2, prowlarrIndexerName: "Bravo", reason: "no-match" },
       {
         prowlarrIndexerId: 1,
         prowlarrIndexerName: "Alpha",
@@ -33,29 +32,16 @@ describe("DiscoveryDiagnostics", () => {
     ]);
 
     const details = screen
-      .getByText("Unmonitored Prowlarr sites · 2")
+      .getByText("Unmonitored Prowlarr sites · 3")
       .closest("details");
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute("open");
-    expect(details?.textContent).toContain("Alpha");
+    expect(details?.textContent).toContain("No matching PT-depiler site definition");
+    expect(details?.textContent).toContain("Multiple matching definitions");
+    expect(details?.textContent).toContain("Matching definition is marked dead");
     expect(details?.textContent).toContain("foo, foopt");
     expect(details?.textContent?.indexOf("Alpha")).toBeLessThan(
-      details?.textContent?.indexOf("Zulu") ?? 0,
+      details?.textContent?.indexOf("Bravo") ?? 0,
     );
-  });
-
-  it("shows an independent warning for discovery errors and keeps stale rows", () => {
-    renderDiagnostics(
-      [{ prowlarrIndexerId: 1, prowlarrIndexerName: "Alpha", reason: "no-match" }],
-      {
-        status: "error",
-        updatedAt: "2026-08-22T12:00:00.000Z",
-        error: { code: "discovery-failed", detail: "database unavailable" },
-      },
-    );
-
-    expect(screen.getByRole("alert")).toHaveTextContent("temporarily unavailable");
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("database unavailable")).toBeInTheDocument();
   });
 });

@@ -1,11 +1,5 @@
 import type { Site, SitesResponse } from "@/types";
 
-export interface CollectOutcome {
-  definition: string;
-  ok: boolean;
-  error?: string;
-}
-
 function toNumber(value: unknown): number | null {
   const n =
     typeof value === "number"
@@ -53,6 +47,6 @@ export function fetchHistory(definition: string): Promise<Site[]> {
   return request<Site[]>(url).then((points) => points.map(parseSite));
 }
 
-export function collectNow(): Promise<CollectOutcome[]> {
-  return request<CollectOutcome[]>("/api/collect", { method: "POST" });
+export function collectNow(): Promise<unknown> {
+  return request("/api/collect", { method: "POST" });
 }

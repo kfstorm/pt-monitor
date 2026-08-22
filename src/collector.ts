@@ -30,7 +30,6 @@ export interface CollectOptions {
   flaresolverrUrl?: string;
   flaresolverrTimeoutMs?: number;
   debug?: boolean;
-  autoDiscoverIndexer?: boolean;
 }
 
 export interface CollectResult {
@@ -114,7 +113,7 @@ export async function findIndexerForDefinition(
   if (explicit !== undefined) return db.getIndexer(explicit);
 
   const targets = await discoverSiteTargets(prowlarrDb, {
-    log: log ?? ((message) => process.stderr.write(`${message}\n`)),
+    log,
   });
   const matchingTargets = targets.filter((target) => target.definition === definition);
   return matchingTargets.length === 1
@@ -188,7 +187,7 @@ function matchMetadata(
 }
 
 function discoveryLog(message: string, options: DiscoveryOptions): void {
-  options.log?.(`[pt-monitor] ${message}`);
+  (options.log ?? ((line: string) => process.stderr.write(`${line}\n`)))(`[pt-monitor] ${message}`);
 }
 
 export async function discoverSiteResult(prowlarrDb: string, options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
@@ -253,21 +252,21 @@ export async function discoverSiteTargets(prowlarrDb: string, options: Discovery
 
 export async function collectSite(options: CollectOptions): Promise<CollectResult> {
   ensureDom();
-  const db = new ProwlarrDB(options.prowlarrDb);
   let credentials: IndexerCredentials;
   if (options.indexer !== undefined) {
-    credentials = findProwlarrIndexer(db, options.definition, options.indexer);
-  } else if (options.autoDiscoverIndexer === false) {
-    credentials = findProwlarrIndexer(db, options.definition);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      options.indexer,
+      discoveryOptions(options.debug).log,
+    );
   } else {
-    const targets = await discoverSiteTargets(options.prowlarrDb, {
-      log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
-    });
-    const matchingTargets = targets.filter((target) => target.definition === options.definition);
-    if (matchingTargets.length !== 1) {
-      throw new Error(`Prowlarr indexer binding for ${options.definition} is not unique`);
-    }
-    credentials = db.getIndexer(matchingTargets[0].prowlarrIndexerId);
+    credentials = await findIndexerForDefinition(
+      options.prowlarrDb,
+      options.definition,
+      undefined,
+      discoveryOptions(options.debug).log,
+    );
   }
   const metadata = await loadSiteMetadata(options.definition);
   const inputSetting = mapInputSettings(metadata, credentials.settings, credentials.cookies);

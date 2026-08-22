@@ -57,9 +57,6 @@ const resources = {
       "discovery.reason.no-match": "No matching PT-depiler site definition",
       "discovery.reason.ambiguous": "Multiple matching definitions",
       "discovery.reason.dead": "Matching definition is marked dead",
-      "discovery.error.title": "Prowlarr discovery is temporarily unavailable",
-      "discovery.error.lastSuccess": "Last successful check: {{time}}",
-      "discovery.error.details": "Show diagnostic details",
     },
   },
   zh: {
@@ -115,9 +112,6 @@ const resources = {
       "discovery.reason.no-match": "找不到对应的 PT-depiler 站点定义",
       "discovery.reason.ambiguous": "匹配到多个站点定义",
       "discovery.reason.dead": "对应站点定义已标记为失效",
-      "discovery.error.title": "暂时无法发现 Prowlarr 站点",
-      "discovery.error.lastSuccess": "上次成功检查：{{time}}",
-      "discovery.error.details": "显示诊断详情",
     },
   },
 } as const;

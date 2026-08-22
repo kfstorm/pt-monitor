@@ -154,10 +154,6 @@ const server = createServer((req, res) => {
           return snapshot(site, points[points.length - 1], now);
         }),
         skipped: SKIPPED,
-        discovery: {
-          status: "ready",
-          updatedAt: new Date(now).toISOString(),
-        },
       }),
     );
     return;
@@ -186,11 +182,7 @@ const server = createServer((req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/collect") {
-    res.end(JSON.stringify(SITES.map((site) => ({
-      definition: site.definition,
-      ok: true,
-      statusName: site.status,
-    }))));
+    res.end("{}");
     return;
   }
 

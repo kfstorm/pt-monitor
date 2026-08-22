@@ -2,12 +2,11 @@ import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, resolve } from "node:path";
 
-import { collectSite, discoverSiteResult, type DiscoveryResult, type SiteTarget, type SkippedSite } from "./collector.ts";
-import { SnapshotStore, type StoredSnapshot } from "./store.ts";
+import { collectSite, discoverSiteResult, findIndexerForDefinition, type SkippedSite } from "./collector.ts";
+import { SnapshotStore } from "./store.ts";
 import { loadSiteMetadata, SiteMetadataResolutionError } from "./ptdepiler.ts";
-import { ProwlarrDB, ProwlarrIndexerResolutionError } from "./prowlarr.ts";
+import { ProwlarrIndexerResolutionError } from "./prowlarr.ts";
 import { resolveSiteUrl } from "./site-url.ts";
-import { sanitizeErrorMessage } from "./upstream-console.ts";
 
 const UI_DIR = resolve(import.meta.dirname, "../frontend/dist");
 
@@ -45,123 +44,81 @@ export interface ServeOptions {
   debug?: boolean;
 }
 
-type DiscoveryStatus = "ready" | "error" | "disabled";
-
-interface DiscoveryError {
-  code: "discovery-failed";
-  detail: string;
-}
-
-export interface DiscoveryMeta {
-  status: DiscoveryStatus;
-  updatedAt: string | null;
-  error?: DiscoveryError;
-}
-
-export interface DiscoveryState {
-  targets: SiteTarget[];
-  skipped: SkippedSite[];
-  discovery: DiscoveryMeta;
-}
-
-class DiscoveryRefreshError extends Error {
-  readonly status = 503;
-
-  constructor(readonly detail: string) {
-    super(detail);
-    this.name = "DiscoveryRefreshError";
-  }
-}
-
 export async function serve(options: ServeOptions): Promise<void> {
   const store = new SnapshotStore(options.stateDb);
-  const explicitTargets = options.sites?.length
-    ? await resolveExplicitTargets(options.sites, options)
-    : null;
-  let discovery: DiscoveryState = explicitTargets
+  const discovery = options.sites?.length
     ? {
-        targets: explicitTargets,
-        skipped: [],
-        discovery: { status: "disabled", updatedAt: null },
+        targets: options.sites.map((definition) => ({
+          definition,
+          prowlarrIndexerId: 0,
+          prowlarrIndexerName: "",
+          matchReason: "explicit configuration",
+        })),
+        skipped: [] as SkippedSite[],
       }
-    : await initialDiscovery(options);
+    : await discoverSiteResult(options.prowlarrDb, {
+        log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
+      });
+  const targets = discovery.targets;
+  let skipped = discovery.skipped;
 
-  if (discovery.targets.length === 0 && discovery.discovery.status !== "error") {
+  if (targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
   }
 
   let collecting: Promise<unknown> | null = null;
   const siteUrls = new Map<string, string>();
 
+  const refreshSkipped = async (): Promise<void> => {
+    if (options.sites?.length) return;
+    try {
+      skipped = (await discoverSiteResult(options.prowlarrDb, {
+        log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
+      })).skipped;
+    } catch {
+      // Keep the last successful diagnostics when discovery is temporarily unavailable.
+    }
+  };
+
   const refreshSiteUrls = async (): Promise<void> => {
-    const db = new ProwlarrDB(options.prowlarrDb);
-    for (const target of discovery.targets) {
-      if (target.prowlarrIndexerId < 0) continue;
-      try {
-        const indexer = db.getIndexer(target.prowlarrIndexerId);
-        const metadata = await loadSiteMetadata(target.definition);
-        const url = resolveSiteUrl(indexer, metadata);
-        const key = siteUrlKey(target.definition, indexer.id);
-        if (url) siteUrls.set(key, url);
-        else siteUrls.delete(key);
-      } catch (error) {
-        if (error instanceof ProwlarrIndexerResolutionError || error instanceof SiteMetadataResolutionError) {
-          clearSiteUrls(siteUrls, target.definition);
+    try {
+      for (const target of targets) {
+        try {
+          const indexer = await findIndexerForDefinition(
+            options.prowlarrDb,
+            target.definition,
+            target.prowlarrIndexerId || undefined,
+            () => {},
+          );
+          const metadata = await loadSiteMetadata(target.definition);
+          const url = resolveSiteUrl(indexer, metadata);
+          const key = siteUrlKey(target.definition, indexer.id);
+          if (url) siteUrls.set(key, url);
+          else siteUrls.delete(key);
+        } catch (error) {
+          if (error instanceof ProwlarrIndexerResolutionError || error instanceof SiteMetadataResolutionError) {
+            clearSiteUrls(siteUrls, target.definition);
+          }
+          // Keep the last valid URL when a refresh fails transiently.
         }
-        // Keep the last valid URL when a refresh fails transiently.
       }
+    } catch {
+      // Keep the last valid URLs when Prowlarr is temporarily unavailable.
     }
   };
 
   await refreshSiteUrls();
 
-  const refreshDiscovery = async (): Promise<boolean> => {
-    try {
-      const result = await runDiscovery(options);
-      discovery = {
-        ...result,
-        discovery: { status: "ready", updatedAt: new Date().toISOString() },
-      };
-      if (discovery.targets.length === 0) {
-        process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
-      }
-      await refreshSiteUrls();
-      return true;
-    } catch (error) {
-      const detail = discoveryDetail(error);
-      if (options.debug) process.stderr.write(`[pt-monitor] discovery failed: ${detail}\n`);
-      discovery = {
-        targets: discovery.targets,
-        skipped: discovery.skipped,
-        discovery: {
-          status: "error",
-          updatedAt: discovery.discovery.updatedAt,
-          error: { code: "discovery-failed", detail },
-        },
-      };
-      return false;
-    }
-  };
   const collectAll = async (): Promise<Array<Record<string, unknown>>> => {
     if (collecting) {
       await collecting;
       return [];
     }
     const work = (async () => {
-      if (!explicitTargets && !(await refreshDiscovery())) {
-        throw new DiscoveryRefreshError(discovery.discovery.error?.detail ?? "Prowlarr discovery is unavailable");
-      }
-      if (explicitTargets) await refreshSiteUrls();
       const results: Array<Record<string, unknown>> = [];
-      for (const target of discovery.targets) {
-        if (target.prowlarrIndexerId < 0) {
-          results.push({
-            definition: target.definition,
-            ok: false,
-            error: "Prowlarr indexer binding is not unique",
-          });
-          continue;
-        }
+      await refreshSkipped();
+      await refreshSiteUrls();
+      for (const target of targets) {
         try {
           const collected = await collectSite({
             prowlarrDb: options.prowlarrDb,
@@ -172,14 +129,14 @@ export async function serve(options: ServeOptions): Promise<void> {
             flaresolverrUrl: options.flaresolverrUrl,
             flaresolverrTimeoutMs: options.flaresolverrTimeoutMs,
             debug: options.debug,
-            autoDiscoverIndexer: !explicitTargets,
           });
           store.insert(collected.snapshot);
           results.push({ definition: target.definition, ok: true, statusName: collected.snapshot.statusName });
         } catch (error) {
-          const detail = sanitizeErrorMessage(error);
+          const message = error instanceof Error ? error.message : String(error);
+          const detail = error instanceof Error ? error.stack ?? message : String(error);
           process.stderr.write(`[pt-monitor] collect ${target.definition}: ${detail}\n`);
-          results.push({ definition: target.definition, ok: false, error: detail });
+          results.push({ definition: target.definition, ok: false, error: message });
         }
       }
       return results;
@@ -198,14 +155,13 @@ export async function serve(options: ServeOptions): Promise<void> {
         req,
         res,
         store,
-        () => discovery,
+        targets.map((target) => target.definition),
         collectAll,
         siteUrls,
+        skipped,
       );
     } catch (error) {
-      writeJson(res, 500, {
-        error: { code: "internal-error", detail: sanitizeErrorMessage(error) },
-      });
+      writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -213,23 +169,14 @@ export async function serve(options: ServeOptions): Promise<void> {
   const port = options.port ?? 9709;
   server.listen(port, listen, () => {
     process.stderr.write(`[pt-monitor] UI: http://${listen}:${port}\n`);
-    process.stderr.write(`[pt-monitor] sites: ${discovery.targets.map((target) => target.definition).join(", ") || "(none)"}\n`);
+    process.stderr.write(`[pt-monitor] sites: ${targets.map((target) => target.definition).join(", ") || "(none)"}\n`);
     process.stderr.write(`[pt-monitor] state DB: ${options.stateDb}\n`);
   });
 
-  const collectInBackground = (): void => {
-    void collectAll().catch((error) => {
-      const detail = error instanceof DiscoveryRefreshError
-        ? error.detail
-        : "Background collection cycle failed.";
-      process.stderr.write(`[pt-monitor] ${detail}\n`);
-    });
-  };
-
   // Start one collection immediately without delaying the HTTP listener.
-  collectInBackground();
+  void collectAll();
   const intervalMs = Math.max(1, options.intervalMinutes ?? 30) * 60_000;
-  const timer = setInterval(collectInBackground, intervalMs);
+  const timer = setInterval(() => void collectAll(), intervalMs);
 
   const shutdown = (): void => {
     clearInterval(timer);
@@ -246,9 +193,10 @@ export async function route(
   req: IncomingMessage,
   res: ServerResponse,
   store: SnapshotStore,
-  getDiscovery: () => DiscoveryState,
+  definitions: string[],
   collectAll: () => Promise<Array<Record<string, unknown>>>,
-  siteUrls: ReadonlyMap<string, string> = new Map(),
+  siteUrls: ReadonlyMap<string, string>,
+  skipped: SkippedSite[] = [],
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
@@ -256,28 +204,17 @@ export async function route(
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/health") {
-    writeJson(res, 200, { ok: true, definitions: getDiscovery().targets.map((target) => target.definition) });
+    writeJson(res, 200, { ok: true, definitions });
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/sites") {
-    const state = getDiscovery();
-    const sites = new Map<string, StoredSnapshot>();
-    for (const definition of new Set(state.targets.map((target) => target.definition))) {
-      const target = activeTarget(state, definition);
-      if (!target) continue;
-      const site = store.latestFor(target.definition, target.prowlarrIndexerId || undefined);
-      if (!site) continue;
-      sites.set(site.definition, site);
-    }
     writeJson(res, 200, {
-      sites: [...sites.values()]
-        .sort((a, b) => a.definition.localeCompare(b.definition, undefined, { sensitivity: "base" }))
+      sites: store.latest()
         .map(({ raw: _raw, ...item }) => {
           const siteUrl = siteUrls.get(siteUrlKey(item.definition, item.prowlarrIndexerId));
           return siteUrl ? { ...item, siteUrl } : item;
         }),
-      skipped: state.skipped,
-      discovery: state.discovery,
+      skipped,
     });
     return;
   }
@@ -287,101 +224,20 @@ export async function route(
     const hoursRaw = Number(url.searchParams.get("hours") ?? 168);
     const hours = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.min(hoursRaw, 24 * 365) : 168;
     const since = Date.now() - hours * 3600_000;
-    const targets = getDiscovery().targets.filter((item) => item.definition === definition);
-    if (targets.length > 1) {
-      writeJson(res, 200, []);
-      return;
-    }
-    const target = targets[0];
     writeJson(
       res,
       200,
-      store.history(definition, since, 2000, target?.prowlarrIndexerId || undefined)
+      store.history(definition, since)
         .map(({ raw: _raw, ...item }) => item),
     );
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/collect") {
-    try {
-      writeJson(res, 200, await collectAll());
-    } catch (error) {
-      if (error instanceof DiscoveryRefreshError) {
-        writeJson(res, error.status, {
-          error: { code: "discovery-failed", detail: error.detail },
-        });
-        return;
-      }
-      throw error;
-    }
+    writeJson(res, 200, await collectAll());
     return;
   }
   writeJson(res, 404, { error: "not found" });
 }
-
-async function initialDiscovery(options: ServeOptions): Promise<DiscoveryState> {
-  try {
-    const result = await runDiscovery(options);
-    return {
-      ...result,
-      discovery: { status: "ready", updatedAt: new Date().toISOString() },
-    };
-  } catch (error) {
-    const detail = discoveryDetail(error);
-    if (options.debug) process.stderr.write(`[pt-monitor] discovery failed: ${detail}\n`);
-    return {
-      targets: [],
-      skipped: [],
-      discovery: {
-        status: "error",
-        updatedAt: null,
-        error: { code: "discovery-failed", detail },
-      },
-    };
-  }
-}
-
-async function resolveExplicitTargets(definitions: string[], options: ServeOptions): Promise<SiteTarget[]> {
-  try {
-    const discovered = await runDiscovery(options);
-    return definitions.map((definition) => {
-      const matches = discovered.targets.filter((target) => target.definition === definition);
-      return matches.length === 1 ? matches[0] : {
-        definition,
-        prowlarrIndexerId: -1,
-        prowlarrIndexerName: "",
-        matchReason: "explicit configuration could not be uniquely bound",
-      };
-    });
-  } catch (error) {
-    if (options.debug) process.stderr.write(`[pt-monitor] explicit indexer lookup failed: ${discoveryDetail(error)}\n`);
-    return definitions.map((definition) => ({
-      definition,
-      prowlarrIndexerId: -1,
-      prowlarrIndexerName: "",
-      matchReason: "explicit configuration could not be bound",
-    }));
-  }
-}
-
-async function runDiscovery(options: ServeOptions): Promise<DiscoveryResult> {
-  return discoverSiteResult(options.prowlarrDb, {
-    log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
-  });
-}
-
-function discoveryDetail(error: unknown): string {
-  const detail = sanitizeErrorMessage(error);
-  if (detail && !/(cookie|password|apikey|token|passkey|authorization|secret)/i.test(detail)) {
-    return detail;
-  }
-  return "Unable to inspect Prowlarr indexers or PT-depiler metadata.";
-}
-
-function activeTarget(state: DiscoveryState, definition: string): SiteTarget | null {
-  const targets = state.targets.filter((target) => target.definition === definition);
-  return targets.length === 1 ? targets[0] : null;
-}
-
 
 function serveStatic(res: ServerResponse, pathname: string): void {
   const fileName = pathname === "/" ? "index.html" : pathname.slice(1);

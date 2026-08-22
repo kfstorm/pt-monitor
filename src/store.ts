@@ -96,29 +96,23 @@ export class SnapshotStore {
     return rows.map(rowToSnapshot);
   }
 
-  latestFor(definition: string, prowlarrIndexerId?: number): StoredSnapshot | null {
-    const indexerClause = prowlarrIndexerId === undefined ? "" : " AND prowlarr_indexer_id = ?";
-    const params = prowlarrIndexerId === undefined ? [definition] : [definition, prowlarrIndexerId];
+  latestFor(definition: string): StoredSnapshot | null {
     const row = this.db.prepare(`
       SELECT * FROM snapshots
-      WHERE definition = ?${indexerClause}
+      WHERE definition = ?
       ORDER BY collected_at DESC, id DESC
       LIMIT 1
-    `).get(...params) as Record<string, unknown> | undefined;
+    `).get(definition) as Record<string, unknown> | undefined;
     return row ? rowToSnapshot(row) : null;
   }
 
-  history(definition: string, since: number, limit = 2000, prowlarrIndexerId?: number): StoredSnapshot[] {
-    const indexerClause = prowlarrIndexerId === undefined ? "" : " AND prowlarr_indexer_id = ?";
-    const params = prowlarrIndexerId === undefined
-      ? [definition, since, limit]
-      : [definition, since, prowlarrIndexerId, limit];
+  history(definition: string, since: number, limit = 2000): StoredSnapshot[] {
     const rows = this.db.prepare(`
       SELECT * FROM snapshots
-      WHERE definition = ? AND collected_at >= ?${indexerClause}
+      WHERE definition = ? AND collected_at >= ?
       ORDER BY collected_at ASC, id ASC
       LIMIT ?
-    `).all(...params) as Array<Record<string, unknown>>;
+    `).all(definition, since, limit) as Array<Record<string, unknown>>;
     return rows.map(rowToSnapshot);
   }
 }
