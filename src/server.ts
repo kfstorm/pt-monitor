@@ -5,11 +5,11 @@ import { extname, resolve } from "node:path";
 import {
   collectSite,
   discoverSiteTargets,
-  findProwlarrIndexer,
+  findIndexerForDefinition,
   type SiteTarget,
 } from "./collector.ts";
-import { ProwlarrDB } from "./prowlarr.ts";
-import { loadSiteMetadata } from "./ptdepiler.ts";
+import { loadSiteMetadata, SiteMetadataResolutionError } from "./ptdepiler.ts";
+import { ProwlarrIndexerResolutionError } from "./prowlarr.ts";
 import { resolveSiteUrl } from "./site-url.ts";
 import { SnapshotStore } from "./store.ts";
 
@@ -68,11 +68,10 @@ export async function serve(options: ServeOptions): Promise<void> {
 
   const refreshSiteUrls = async (): Promise<void> => {
     try {
-      const db = new ProwlarrDB(options.prowlarrDb);
       for (const target of targets) {
         try {
-          const indexer = findProwlarrIndexer(
-            db,
+          const indexer = await findIndexerForDefinition(
+            options.prowlarrDb,
             target.definition,
             target.prowlarrIndexerId || undefined,
           );
@@ -81,7 +80,13 @@ export async function serve(options: ServeOptions): Promise<void> {
           const key = siteUrlKey(target.definition, indexer.id);
           if (url) siteUrls.set(key, url);
           else siteUrls.delete(key);
-        } catch {
+        } catch (error) {
+          if (
+            error instanceof ProwlarrIndexerResolutionError ||
+            error instanceof SiteMetadataResolutionError
+          ) {
+            clearSiteUrls(siteUrls, target.definition);
+          }
           // Keep the last valid URL when a refresh fails transiently.
         }
       }
@@ -89,6 +94,8 @@ export async function serve(options: ServeOptions): Promise<void> {
       // Keep the last valid URLs when Prowlarr is temporarily unavailable.
     }
   };
+
+  await refreshSiteUrls();
 
   const collectAll = async (): Promise<Array<Record<string, unknown>>> => {
     if (collecting) {
@@ -248,4 +255,11 @@ function writeJson(res: ServerResponse, status: number, value: unknown): void {
 
 function siteUrlKey(definition: string, prowlarrIndexerId: number): string {
   return `${definition}:${prowlarrIndexerId}`;
+}
+
+function clearSiteUrls(siteUrls: Map<string, string>, definition: string): void {
+  const prefix = `${definition}:`;
+  for (const key of siteUrls.keys()) {
+    if (key.startsWith(prefix)) siteUrls.delete(key);
+  }
 }

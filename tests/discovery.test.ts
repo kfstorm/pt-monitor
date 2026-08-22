@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { discoverSiteTargets } from "../src/collector.ts";
+import { discoverSiteTargets, findIndexerForDefinition } from "../src/collector.ts";
 import { mapInputSettings } from "../src/ptdepiler.ts";
 
 function createProwlarrFixture(): string {
@@ -69,4 +69,15 @@ test("maps generic API key credentials to a declared PT-depiler token input", ()
   );
 
   assert.deepEqual(inputSetting, { token: "test-api-key", username: "test-user" });
+});
+
+test("resolves an indexer by its discovered definition binding", async () => {
+  const dir = createProwlarrFixture();
+  try {
+    const indexer = await findIndexerForDefinition(join(dir, "prowlarr.db"), "mteam");
+    assert.equal(indexer.id, 28);
+    assert.equal(indexer.name, "M-Team - TP");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -42,3 +42,50 @@ test("returns undefined when no safe URL is available", () => {
     undefined,
   );
 });
+
+test("does not expose credentials embedded in a URL", () => {
+  assert.equal(
+    resolveSiteUrl(
+      { baseUrl: "https://user:password@configured.example/" },
+      { urls: ["https://metadata.example/"] },
+    ),
+    "https://metadata.example/",
+  );
+});
+
+test("falls back when a URL query contains credential material", () => {
+  assert.equal(
+    resolveSiteUrl(
+      { baseUrl: "https://configured.example/?token=secret" },
+      { urls: ["https://metadata.example/"] },
+    ),
+    "https://metadata.example/",
+  );
+});
+
+test("falls back when a URL fragment contains credential material", () => {
+  assert.equal(
+    resolveSiteUrl(
+      { baseUrl: "https://configured.example/#state=ok&%74oken=secret" },
+      { urls: ["https://metadata.example/"] },
+    ),
+    "https://metadata.example/",
+  );
+});
+
+test("filters common credential parameter aliases", () => {
+  assert.equal(
+    resolveSiteUrl(
+      { baseUrl: "https://configured.example/?refresh_token=secret&client_secret=secret" },
+      { urls: ["https://metadata.example/"] },
+    ),
+    "https://metadata.example/",
+  );
+  assert.equal(
+    resolveSiteUrl(
+      { baseUrl: "https://configured.example/#bearer=secret&jwt=secret" },
+      { urls: ["https://metadata.example/"] },
+    ),
+    "https://metadata.example/",
+  );
+});
