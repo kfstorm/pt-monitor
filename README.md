@@ -45,7 +45,7 @@ docker run -d \
   pt-monitor
 ```
 
-打开 <http://127.0.0.1:9709> 。首次启动立即采集一次，之后默认每 30 分钟采集。
+打开 <http://127.0.0.1:9709> 。首次启动立即采集一次，之后默认每 30 分钟采集；未指定 `SITES` 时，也会在每轮采集前重新发现 Prowlarr 站点。单次发现失败会保留上一轮站点列表。
 
 ### 环境变量
 
@@ -56,7 +56,7 @@ docker run -d \
 | `SITES` | （自动发现） | PT-depiler definition 列表，逗号分隔 |
 | `LISTEN` | `0.0.0.0` | 监听地址 |
 | `PORT` | `9709` | 端口 |
-| `INTERVAL_MINUTES` | `30` | 采集间隔（分钟） |
+| `INTERVAL_MINUTES` | `30` | 采集及自动发现间隔（分钟） |
 | `TIMEOUT_MS` | `30000` | HTTP 超时 |
 | `USER_AGENT` | — | 自定义 User-Agent |
 | `FLARESOLVERR_URL` | — | 启用 FlareSolverr 回退 |
@@ -79,7 +79,7 @@ pnpm cli serve \
   --sites <definition1,definition2>
 ```
 
-默认监听 `127.0.0.1:9709`。不传 `--sites` 时尝试自动发现 Prowlarr 与 PT-depiler 的交集；自动发现只做保守匹配，名称不一致的站建议显式传 `--sites`。完整 CLI 参数见 `pnpm cli --help`。
+默认监听 `127.0.0.1:9709`。不传 `--sites` 时尝试自动发现 Prowlarr 与 PT-depiler 的交集，并按 `--interval-minutes` 定期刷新；自动发现只做保守匹配，名称不一致的站建议显式传 `--sites`。显式传入 `--sites` 后站点列表保持固定。完整 CLI 参数见 `pnpm cli --help`。
 
 `definition` 是 PT-depiler 内置的站点定义名（如 `hdtime`），对应其 [definitions 目录](https://github.com/pt-plugins/PT-depiler/tree/master/src/packages/site/definitions)下的文件名（去掉 `.ts` 后缀）。要查看有哪些可用站点，直接在该目录里查找即可。
 

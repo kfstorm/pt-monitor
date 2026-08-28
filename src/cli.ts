@@ -34,7 +34,7 @@ Serve options:
   --sites a,b,c                 Definitions to monitor; default: auto-discover intersection
   --listen ADDRESS              Default: 127.0.0.1
   --port PORT                   Default: 9709
-  --interval-minutes N          Default: 30
+  --interval-minutes N          Collection and auto-discovery interval; default: 30
 
 Examples:
   pnpm cli list --db /srv/prowlarr/prowlarr.db

@@ -2,7 +2,14 @@ import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, resolve } from "node:path";
 
-import { collectSite, discoverSiteResult, findIndexerForDefinition, type SkippedSite } from "./collector.ts";
+import {
+  collectSite,
+  discoverSiteResult,
+  findIndexerForDefinition,
+  type DiscoveryResult,
+  type SiteTarget,
+  type SkippedSite,
+} from "./collector.ts";
 import { SnapshotStore } from "./store.ts";
 import { loadSiteMetadata, SiteMetadataResolutionError } from "./ptdepiler.ts";
 import { ProwlarrIndexerResolutionError } from "./prowlarr.ts";
@@ -44,9 +51,46 @@ export interface ServeOptions {
   debug?: boolean;
 }
 
+export interface DiscoveryRefresher {
+  current(): DiscoveryResult;
+  refresh(): Promise<void>;
+}
+
+export function createDiscoveryRefresher(
+  initialDiscovery: DiscoveryResult,
+  discover?: () => Promise<DiscoveryResult>,
+  log: (message: string) => void = (message) => process.stderr.write(`[pt-monitor] ${message}\n`),
+): DiscoveryRefresher {
+  let discovery = initialDiscovery;
+  let refreshing: Promise<void> | null = null;
+
+  return {
+    current: () => discovery,
+    refresh: async () => {
+      if (!discover) return;
+      if (refreshing) return refreshing;
+
+      const work = (async () => {
+        try {
+          discovery = await discover();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          log(`site discovery refresh failed: ${message}`);
+        }
+      })();
+      refreshing = work;
+      try {
+        await work;
+      } finally {
+        if (refreshing === work) refreshing = null;
+      }
+    },
+  };
+}
+
 export async function serve(options: ServeOptions): Promise<void> {
   const store = new SnapshotStore(options.stateDb);
-  const discovery = options.sites?.length
+  const initialDiscovery: DiscoveryResult = options.sites?.length
     ? {
         targets: options.sites.map((definition) => ({
           definition,
@@ -59,17 +103,22 @@ export async function serve(options: ServeOptions): Promise<void> {
     : await discoverSiteResult(options.prowlarrDb, {
         log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
       });
-  const targets = discovery.targets;
-  const skipped = discovery.skipped;
-
-  if (targets.length === 0) {
+  const discoveryRefresher = createDiscoveryRefresher(
+    initialDiscovery,
+    options.sites?.length
+      ? undefined
+      : () => discoverSiteResult(options.prowlarrDb, {
+          log: options.debug ? (message) => process.stderr.write(`${message}\n`) : undefined,
+        }),
+  );
+  if (discoveryRefresher.current().targets.length === 0) {
     process.stderr.write("[pt-monitor] No matching PT-depiler definitions discovered. Pass --sites hdtime,pter,...\n");
   }
 
   let collecting: Promise<unknown> | null = null;
   const siteUrls = new Map<string, string>();
 
-  const refreshSiteUrls = async (): Promise<void> => {
+  const refreshSiteUrls = async (targets: SiteTarget[]): Promise<void> => {
     try {
       for (const target of targets) {
         try {
@@ -96,16 +145,18 @@ export async function serve(options: ServeOptions): Promise<void> {
     }
   };
 
-  await refreshSiteUrls();
+  await refreshSiteUrls(discoveryRefresher.current().targets);
 
-  const collectAll = async (): Promise<Array<Record<string, unknown>>> => {
+  const collectAll = async (refreshTargets = true): Promise<Array<Record<string, unknown>>> => {
     if (collecting) {
       await collecting;
       return [];
     }
     const work = (async () => {
+      if (refreshTargets) await discoveryRefresher.refresh();
+      const { targets } = discoveryRefresher.current();
       const results: Array<Record<string, unknown>> = [];
-      await refreshSiteUrls();
+      await refreshSiteUrls(targets);
       for (const target of targets) {
         try {
           const collected = await collectSite({
@@ -143,10 +194,10 @@ export async function serve(options: ServeOptions): Promise<void> {
         req,
         res,
         store,
-        targets.map((target) => target.definition),
+        discoveryRefresher.current().targets.map((target) => target.definition),
         collectAll,
         siteUrls,
-        skipped,
+        discoveryRefresher.current().skipped,
       );
     } catch (error) {
       writeJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -157,12 +208,14 @@ export async function serve(options: ServeOptions): Promise<void> {
   const port = options.port ?? 9709;
   server.listen(port, listen, () => {
     process.stderr.write(`[pt-monitor] UI: http://${listen}:${port}\n`);
-    process.stderr.write(`[pt-monitor] sites: ${targets.map((target) => target.definition).join(", ") || "(none)"}\n`);
+    process.stderr.write(
+      `[pt-monitor] sites: ${discoveryRefresher.current().targets.map((target) => target.definition).join(", ") || "(none)"}\n`,
+    );
     process.stderr.write(`[pt-monitor] state DB: ${options.stateDb}\n`);
   });
 
   // Start one collection immediately without delaying the HTTP listener.
-  void collectAll();
+  void collectAll(false);
   const intervalMs = Math.max(1, options.intervalMinutes ?? 30) * 60_000;
   const timer = setInterval(() => void collectAll(), intervalMs);
 
