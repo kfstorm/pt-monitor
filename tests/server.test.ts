@@ -7,7 +7,8 @@ import test from "node:test";
 
 import { normalizeUserInfo } from "../src/normalize.ts";
 import { SnapshotStore } from "../src/store.ts";
-import { route } from "../src/server.ts";
+import { createDiscoveryRefresher, route } from "../src/server.ts";
+import type { DiscoveryResult, SiteTarget } from "../src/collector.ts";
 
 function response(): { value: () => unknown; server: ServerResponse } {
   let body: unknown;
@@ -28,6 +29,46 @@ function snapshot(definition: string, id: number) {
     1000,
   );
 }
+
+function target(definition: string, id: number): SiteTarget {
+  return {
+    definition,
+    prowlarrIndexerId: id,
+    prowlarrIndexerName: definition,
+    matchReason: "test",
+  };
+}
+
+test("refreshes discovered targets and keeps the previous result after a failure", async () => {
+  const logs: string[] = [];
+  let shouldFail = false;
+  let discovered: DiscoveryResult = { targets: [target("new-site", 2)], skipped: [] };
+  const refresher = createDiscoveryRefresher(
+    { targets: [target("old-site", 1)], skipped: [] },
+    async () => {
+      if (shouldFail) throw new Error("database temporarily unavailable");
+      return discovered;
+    },
+    (message) => logs.push(message),
+  );
+
+  await refresher.refresh();
+  assert.deepEqual(refresher.current(), discovered);
+
+  shouldFail = true;
+  await refresher.refresh();
+
+  assert.deepEqual(refresher.current(), { targets: [target("new-site", 2)], skipped: [] });
+  assert.equal(logs.at(-1), "site discovery refresh failed: database temporarily unavailable");
+});
+
+test("does not refresh an explicitly configured target list", async () => {
+  const refresher = createDiscoveryRefresher({ targets: [target("fixed-site", 1)], skipped: [] });
+
+  await refresher.refresh();
+
+  assert.deepEqual(refresher.current(), { targets: [target("fixed-site", 1)], skipped: [] });
+});
 
 test("sites API preserves current snapshots and adds skipped diagnostics", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pt-monitor-server-"));
