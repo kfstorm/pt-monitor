@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM node:24-bookworm AS build-ui
+FROM --platform=$BUILDPLATFORM node:24.22.1-bookworm AS build-ui
 
 RUN corepack enable
 
@@ -15,7 +15,7 @@ COPY frontend/index.html frontend/components.json frontend/tsconfig.json fronten
 COPY frontend/src/ frontend/src/
 RUN pnpm ui:build
 
-FROM node:24-bookworm AS build
+FROM node:24.22.1-bookworm AS build
 
 RUN corepack enable
 
@@ -34,7 +34,7 @@ RUN pnpm bootstrap
 COPY src/ src/
 COPY tsconfig.json ./
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24.22.1-bookworm-slim AS runtime
 
 RUN corepack enable \
     && apt-get update \
