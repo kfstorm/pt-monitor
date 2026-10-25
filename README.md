@@ -67,7 +67,7 @@ docker run -d \
 
 ## 从源码运行
 
-需要 Node.js 24.15.0 及以上的 24.x 版本，或 Node.js ≥ 26；还需要 pnpm 10（`corepack enable`）以及 curl/tar（bootstrap 下载 vendor 用）。
+需要 Node.js 24.22.1 及以上的 24.x 版本，或 Node.js ≥ 26.12.1；还需要 pnpm 10（`corepack enable`）以及 curl/tar（bootstrap 下载 vendor 用）。
 
 ```bash
 corepack enable
